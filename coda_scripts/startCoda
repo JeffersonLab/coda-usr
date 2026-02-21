@@ -1,0 +1,540 @@
+#!/bin/bash
+#
+# startCoda script
+#
+# Usage:
+#   startCoda [--file <component_file>] [--config <config_value>]
+#
+# Options:
+#   --file <path>    Path to component definition file (supports env vars like $VAR/path)
+#   --config <name>  Optional configuration name
+#   -h, --help       Show this help message
+#
+# If --file is not provided, uses the default component table and launches
+# platform, startXterms, and startRcgui.
+#
+
+usage() {
+    cat <<EOF
+Usage: startCoda [--file <component_file>] [--config <config_value>]
+
+Options:
+  --file <path>    Path to component definition file (required for file-based mode)
+                   The path may contain environment variables (e.g., \$CODA_SCRIPTS/file.txt)
+  --config <name>  Optional configuration name (sets CODA_CONFIG environment)
+  -h, --help       Show this help message
+
+Examples:
+  startCoda                                          # Use default behavior
+  startCoda --file /path/to/components.txt           # Launch from file
+  startCoda --file \$CODA_SCRIPTS/components.txt --config myconfig
+
+Component file format:
+  # Lines starting with # are comments
+  hostname  component_type  component_name  [optional_params]
+
+  Example:
+    clondaq3 PEB PEB1
+    test2 ROC ROC1 -v
+    test2vtp FPGA FPGA2 -v
+EOF
+}
+
+# Parse command line arguments
+COMPONENT_FILE=""
+CONFIG_VALUE=""
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --file)
+            if [[ -z "$2" || "$2" == --* ]]; then
+                echo "ERROR: --file requires a path argument"
+                usage
+                exit 1
+            fi
+            COMPONENT_FILE="$2"
+            shift 2
+            ;;
+        --config)
+            if [[ -z "$2" || "$2" == --* ]]; then
+                echo "ERROR: --config requires a value argument"
+                usage
+                exit 1
+            fi
+            CONFIG_VALUE="$2"
+            shift 2
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            echo "ERROR: Unknown option: $1"
+            usage
+            exit 1
+            ;;
+    esac
+done
+
+# If --file is not provided, use default behavior
+if [[ -z "$COMPONENT_FILE" ]]; then
+    platform &
+    sleep 10
+    startXterms &
+    startRcgui &
+    exit 0
+fi
+
+# Set config if provided
+if [[ -n "$CONFIG_VALUE" ]]; then
+    export CODA_CONFIG="$CONFIG_VALUE"
+fi
+
+# Resolve environment variables in the file path
+resolve_path() {
+    local path="$1"
+    # Use eval to expand environment variables
+    eval echo "$path"
+}
+
+RESOLVED_FILE=$(resolve_path "$COMPONENT_FILE")
+
+# Check if file exists and is readable
+if [[ ! -f "$RESOLVED_FILE" ]]; then
+    echo "ERROR: Component file not found: $RESOLVED_FILE"
+    echo "       (Original path: $COMPONENT_FILE)"
+    exit 1
+fi
+
+if [[ ! -r "$RESOLVED_FILE" ]]; then
+    echo "ERROR: Component file is not readable: $RESOLVED_FILE"
+    exit 1
+fi
+
+echo "************************************************************"
+echo "Starting CODA components from file: $RESOLVED_FILE"
+if [[ -n "$CONFIG_VALUE" ]]; then
+    echo "Using configuration: $CONFIG_VALUE"
+fi
+echo "************************************************************"
+
+# Source necessary functions and setup
+. ${CODA_SCRIPTS}/coda_xterms_functions 2>/dev/null || true
+
+# Set up xterm parameters
+XTERM_EXE="xterm"
+XTDIM=80x19
+FIRST_XPOS=0
+FIRST_YPOS=30
+xpos=$FIRST_XPOS
+ypos=$FIRST_YPOS
+XINCR=510
+YINCR=280
+
+# Configuration file generation functions (used when --config is specified)
+
+# Extract VME section from base.cnf
+extract_vme_section() {
+    local base_file="$1"
+    local output_file="$2"
+
+    # Extract everything from start until the VTP Configuration header
+    sed -n '1,/^######## VTP Configuration/p' "$base_file" | sed '$d' > "$output_file"
+}
+
+# Extract VTP section from base.cnf (excluding MAC/IP table at end)
+extract_vtp_section() {
+    local base_file="$1"
+    local output_file="$2"
+
+    # Extract from VTP Configuration header until the MAC/IP table comment
+    sed -n '/^######## VTP Configuration/,/^# VTP rocs, their MAC and IP addresses/p' "$base_file" | sed '$d' > "$output_file"
+}
+
+# Get MAC and IP for a hostname from base.cnf
+get_mac_ip_from_base() {
+    local base_file="$1"
+    local hostname="$2"
+    local mac_var="$3"  # Variable name to store MAC
+    local ip_var="$4"   # Variable name to store IP
+
+    # Find the line for this hostname in the MAC/IP table
+    local line=$(grep "^${hostname}[[:space:]]" "$base_file")
+
+    if [[ -z "$line" ]]; then
+        echo "WARNING: No MAC/IP mapping found for hostname: $hostname in $base_file"
+        eval $mac_var=""
+        eval $ip_var=""
+        return 1
+    fi
+
+    # Extract MAC (between first set of quotes) and IP (between second set of quotes)
+    local mac=$(echo "$line" | sed 's/[^"]*"\([^"]*\)".*/\1/')
+    local ip=$(echo "$line" | sed 's/.*"[^"]*"[[:space:]]*"\([^"]*\)".*/\1/')
+
+    # MAC and IP are already in the correct format in base.cnf
+    eval $mac_var="'$mac'"
+    eval $ip_var="'$ip'"
+    return 0
+}
+
+# Extract slot numbers from hostname.peds file
+extract_slots_from_peds() {
+    local peds_file="$1"
+    local slots_var="$2"  # Variable name to store array of slots
+
+    if [[ ! -f "$peds_file" ]]; then
+        echo "WARNING: Pedestal file not found: $peds_file"
+        eval $slots_var="()"
+        return 1
+    fi
+
+    # Extract all FADC250_SLOT lines and get the slot numbers
+    local slot_numbers=$(grep "^FADC250_SLOT" "$peds_file" | awk '{print $2}')
+
+    # Convert to array
+    local -a slots_array=($slot_numbers)
+
+    # Return via eval
+    eval $slots_var="(${slots_array[@]})"
+    return 0
+}
+
+# Compute VTP_PAYLOAD_EN from slot numbers
+# Slot-to-payload mapping:
+#   slot:    10 13  9 14  8 15  7 16  6 17  5 18  4 19  3 20
+#   payload:  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16
+compute_vtp_payload_en() {
+    local -a slots=("$@")
+
+    # Initialize all payloads to 0
+    local -a payload_en=(0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0)
+
+    # Map slot to payload index using case statement
+    map_slot_to_payload() {
+        local slot=$1
+        case "$slot" in
+            10) echo 0 ;;
+            13) echo 1 ;;
+            9)  echo 2 ;;
+            14) echo 3 ;;
+            8)  echo 4 ;;
+            15) echo 5 ;;
+            7)  echo 6 ;;
+            16) echo 7 ;;
+            6)  echo 8 ;;
+            17) echo 9 ;;
+            5)  echo 10 ;;
+            18) echo 11 ;;
+            4)  echo 12 ;;
+            19) echo 13 ;;
+            3)  echo 14 ;;
+            20) echo 15 ;;
+            *)  echo -1 ;;
+        esac
+    }
+
+    # Set payload bits for present slots
+    for slot in "${slots[@]}"; do
+        local payload_idx=$(map_slot_to_payload "$slot")
+        if [[ $payload_idx -ge 0 ]]; then
+            payload_en[$payload_idx]=1
+        fi
+    done
+
+    # Return as space-separated string
+    echo "${payload_en[@]}"
+}
+
+# Generate vme_hostname.cnf
+generate_vme_config() {
+    local hostname="$1"
+    local base_file="$2"
+    local peds_file="$3"
+    local output_dir="$4"
+
+    local output_file="${output_dir}/vme_${hostname}.cnf"
+
+    echo "  Generating: $output_file"
+
+    # Extract VME section from base.cnf
+    extract_vme_section "$base_file" "$output_file"
+
+    # Append the pedestal file content to the END of the file
+    if [[ -f "$peds_file" ]]; then
+        echo "" >> "$output_file"
+        cat "$peds_file" >> "$output_file"
+        echo "" >> "$output_file"
+        echo "  Appended pedestals from: $peds_file ($(wc -l < "$peds_file") lines)"
+    else
+        echo "WARNING: Pedestal file not found: $peds_file"
+    fi
+}
+
+# Generate vtp_hostname.cnf
+generate_vtp_config() {
+    local hostname="$1"
+    local base_file="$2"
+    local peds_file="$3"
+    local output_dir="$4"
+
+    local output_file="${output_dir}/vtp_${hostname}.cnf"
+
+    echo "  Generating: $output_file"
+
+    # Extract VTP section from base.cnf
+    extract_vtp_section "$base_file" "$output_file"
+
+    # Get MAC and IP from base.cnf
+    local mac_addr=""
+    local ip_addr=""
+    get_mac_ip_from_base "$base_file" "$hostname" mac_addr ip_addr
+
+    # Extract slots from peds file
+    local -a slots=()
+    extract_slots_from_peds "$peds_file" slots
+
+    # Compute VTP_PAYLOAD_EN
+    local payload_en=$(compute_vtp_payload_en "${slots[@]}")
+
+    # Append VTP_PAYLOAD_EN
+    cat >> "$output_file" <<EOF
+
+#        slot: 10 13  9 14  8 15  7 16  6 17  5 18  4 19  3 20
+#     payload:  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16
+VTP_PAYLOAD_EN  $payload_en
+
+VTP_STREAMING_ROCID       0
+VTP_STREAMING_NFRAME_BUF  1000
+VTP_STREAMING_FRAMELEN    65536
+
+###################################################
+#VTP FADC Streaming event builder #0 (slots 3-10) #
+###################################################
+VTP_STREAMING             0
+
+VTP_STREAMING_MAC         $mac_addr
+
+VTP_STREAMING_NSTREAMS    1
+
+VTP_STREAMING_IPADDR      $ip_addr
+VTP_STREAMING_SUBNET      255 255 255   0
+VTP_STREAMING_GATEWAY     129  57 69   1
+
+VTP_STREAMING_DESTIP      129.57.177.3
+VTP_STREAMING_DESTIPPORT  19522
+VTP_STREAMING_LOCALPORT   10001
+
+VTP_STREAMING_CONNECT     1
+
+EOF
+}
+
+# Function to launch a component via xterm
+launch_component() {
+    local hostname="$1"
+    local comp_type="$2"
+    local comp_name="$3"
+    local comp_options="$4"
+
+    local xterm_title="$hostname : $comp_type : $comp_name"
+    local xterm_color="lightgreen"
+    local xterm_cmd=""
+
+    # Set color based on component type
+    case "$comp_type" in
+        ROC|FPGA)
+            xterm_color="lightgreen"
+            ;;
+        TS)
+            xterm_color="yellow"
+            ;;
+        PEB)
+            xterm_color="lightblue"
+            ;;
+        ER)
+            xterm_color="tan"
+            ;;
+        SEB)
+            xterm_color="orange"
+            ;;
+        DC)
+            xterm_color="grey"
+            ;;
+        PAGG)
+            xterm_color="lightblue"
+            ;;
+    esac
+
+    # Special handling for ROC components
+    if [[ "$comp_type" == "ROC" ]]; then
+        # For ROC: remote login to host, cd to fadc-peds, and run fadc250peds
+        xterm_cmd="remote_vme $hostname nobody \"cd \\\$CODA/linuxvme/fadc-peds && ./fadc250peds \\\$CODA_CONFIG/${hostname}.peds\" 2>&1 | tee coda_tmp_log/${hostname}_${comp_name}_lastsession.log"
+    else
+        # For other components: use existing pattern (remote_vme + start script)
+        xterm_cmd="remote_vme $hostname nobody ${CODA_SCRIPTS}/start${comp_type}.sh $comp_name $comp_options 2>&1 | tee coda_tmp_log/${hostname}_${comp_name}_lastsession.log"
+    fi
+
+    # Launch the xterm
+    ${XTERM_EXE} -geometry $XTDIM+$xpos+$ypos -T "$xterm_title" -bg "$xterm_color" \
+        -e /bin/bash -i -c "trap '' SIGINT; $xterm_cmd; echo; echo '--- Press Enter to return to shell ---'; read; exec bash" &
+
+    # Update position for next window
+    ypos=$((ypos + YINCR))
+    if [[ $ypos -gt 800 ]]; then
+        xpos=$((xpos + XINCR))
+        ypos=$FIRST_YPOS
+    fi
+}
+
+# Array to track ROC hostnames for config file generation
+declare -a ROC_HOSTNAMES=()
+
+# Parse and process the component file
+line_number=0
+component_count=0
+
+while IFS= read -r line || [[ -n "$line" ]]; do
+    line_number=$((line_number + 1))
+
+    # Remove leading/trailing whitespace
+    line=$(echo "$line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+
+    # Skip blank lines
+    if [[ -z "$line" ]]; then
+        continue
+    fi
+
+    # Skip comment lines
+    if [[ "$line" =~ ^# ]]; then
+        continue
+    fi
+
+    # Parse the line into fields
+    read -r hostname comp_type comp_name rest <<< "$line"
+
+    # Validate minimum required fields
+    if [[ -z "$hostname" || -z "$comp_type" || -z "$comp_name" ]]; then
+        echo "WARNING: Line $line_number has fewer than 3 fields, skipping: $line"
+        continue
+    fi
+
+    echo "Launching: $comp_type $comp_name on $hostname (options: $rest)"
+
+    # Track ROC hostnames for config generation
+    if [[ "$comp_type" == "ROC" ]]; then
+        # Add to array if not already present
+        if [[ ! " ${ROC_HOSTNAMES[@]} " =~ " ${hostname} " ]]; then
+            ROC_HOSTNAMES+=("$hostname")
+        fi
+    fi
+
+    # Launch the component
+    launch_component "$hostname" "$comp_type" "$comp_name" "$rest"
+
+    component_count=$((component_count + 1))
+
+    # Small delay between launches
+    sleep 0.5
+
+done < "$RESOLVED_FILE"
+
+echo "************************************************************"
+echo "Launched $component_count components"
+echo "************************************************************"
+
+# Generate configuration files when --config is specified
+if [[ -n "$CONFIG_VALUE" && ${#ROC_HOSTNAMES[@]} -gt 0 ]]; then
+    echo ""
+    echo "************************************************************"
+    echo "Generating configuration files for ROC hosts"
+    echo "************************************************************"
+
+    # Determine base.cnf location
+    BASE_CNF="${CODA_SCRIPTS}/../config/base.cnf"
+    if [[ ! -f "$BASE_CNF" ]]; then
+        echo "WARNING: base.cnf not found at: $BASE_CNF"
+        echo "         Skipping configuration file generation"
+    else
+        # Output directory (same as base.cnf location)
+        OUTPUT_DIR="$(dirname "$BASE_CNF")"
+
+        # Wait a bit for pedestal files to be generated
+        echo "Waiting for pedestal file generation..."
+        sleep 5
+
+        # Generate config files for each ROC hostname
+        for hostname in "${ROC_HOSTNAMES[@]}"; do
+            echo ""
+            echo "Processing ROC host: $hostname"
+
+            # Pedestal file location
+            PEDS_FILE="${CODA_CONFIG}/${hostname}.peds"
+
+            # Wait for peds file to exist and be closed (fully written)
+            echo "  Waiting for pedestal file: $PEDS_FILE"
+            wait_count=0
+            max_wait=60  # Maximum 60 seconds total wait
+
+            # First, wait for file to exist
+            while [[ ! -f "$PEDS_FILE" && $wait_count -lt $max_wait ]]; do
+                sleep 1
+                wait_count=$((wait_count + 1))
+            done
+
+            if [[ ! -f "$PEDS_FILE" ]]; then
+                echo "  WARNING: Pedestal file not found after ${max_wait}s: $PEDS_FILE"
+                echo "           Skipping config generation for $hostname"
+                continue
+            fi
+
+            # File exists, now wait for it to be closed (size stabilizes)
+            echo "  Pedestal file found, waiting for write completion..."
+            prev_size=-1
+            stable_count=0
+            while [[ $wait_count -lt $max_wait && $stable_count -lt 3 ]]; do
+                curr_size=$(wc -c < "$PEDS_FILE" 2>/dev/null || echo 0)
+
+                if [[ $curr_size -eq $prev_size && $curr_size -gt 0 ]]; then
+                    # Size unchanged and non-zero, increment stable counter
+                    stable_count=$((stable_count + 1))
+                else
+                    # Size changed, reset stable counter
+                    stable_count=0
+                fi
+
+                prev_size=$curr_size
+
+                if [[ $stable_count -lt 3 ]]; then
+                    sleep 1
+                    wait_count=$((wait_count + 1))
+                fi
+            done
+
+            if [[ $stable_count -lt 3 ]]; then
+                echo "  WARNING: Pedestal file may still be writing: $PEDS_FILE"
+                echo "           Proceeding anyway..."
+            else
+                echo "  Pedestal file ready (${prev_size} bytes)"
+            fi
+
+            # Generate vme_hostname.cnf
+            generate_vme_config "$hostname" "$BASE_CNF" "$PEDS_FILE" "$OUTPUT_DIR"
+
+            # Generate vtp_hostname.cnf
+            generate_vtp_config "$hostname" "$BASE_CNF" "$PEDS_FILE" "$OUTPUT_DIR"
+
+            echo "  Completed configuration files for: $hostname"
+        done
+
+        echo ""
+        echo "************************************************************"
+        echo "Configuration file generation complete"
+        echo "************************************************************"
+    fi
+fi
+
+# Also start platform and rcgui in file-based mode
+platform &
+sleep 2
+startRcgui &

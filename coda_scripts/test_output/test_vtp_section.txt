@@ -1,0 +1,40 @@
+######## VTP Configuration #################
+############################################
+
+# Streaming V2 firmware
+VTP_FIRMWARE_Z7           fe_vtp_z7_streamingv3_Mar02.bin
+VTP_FIRMWARE_V7           fe_vtp_v7_fadc_streamingv3_Mar15.2.bin
+
+
+VTP_STREAMING_ROCID       0
+VTP_STREAMING_NFRAME_BUF  1000
+VTP_STREAMING_FRAMELEN    65536
+
+# (can be 1-4)
+VTP_NUM_CONNECTIONS  1 
+
+# (0=TCP, 1=UDP)
+VTP_NET_MODE  1 
+
+# (Enable EJFAT headers - UDP only)
+VTP_ENABLE_EJFAT  1 (Enable EJFAT headers - UDP only)
+
+# (base local port)
+VTP_LOCAL_PORT: 10001 
+
+VTP_STREAMING             0
+
+VTP_STREAMING_NSTREAMS    1
+
+VTP_STREAMING_SUBNET      255 255 255   0
+VTP_STREAMING_GATEWAY     129  57  69   1   
+
+#JLab LB (MUST update every new reservation & URI!)
+VTP_STREAMING_DESTIP	         129.57.177.28
+
+VTP_STREAMING_DESTIPPORT  19522
+VTP_STREAMING_LOCALPORT   10001
+
+VTP_STREAMING_CONNECT     1
+
+######################################

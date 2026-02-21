@@ -1,0 +1,26 @@
+# Test file with edge cases
+
+# This is a comment
+  # This is an indented comment
+
+clondaq1 PEB PEB1
+clondaq2 ROC ROC2 -v -i
+
+# Commented out component
+#test3 FPGA FPGA3
+
+# Component with no options
+testhost TS TS1
+
+# Component with many options
+testhost2 SEB SEB1 -v -i --debug --verbose
+
+# Empty lines below
+
+
+
+# More components after empty lines
+finalhost ER ER1
+
+# Missing fields on next line (should be skipped with warning)
+badline incomplete

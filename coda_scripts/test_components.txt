@@ -1,0 +1,7 @@
+# CODA Component table
+# hostname   component type    component name   [options]
+
+clondaq3 PEB PEB1
+#clondaq3 PAGG PAGG1
+test2 ROC ROC1 -v
+test2vtp FPGA FPGA2 -v
