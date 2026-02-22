@@ -606,16 +606,103 @@ platform &
 PLATFORM_PID=$!
 echo "  rcPlatform started (PID: $PLATFORM_PID)"
 
-# Wait for platform to initialize before starting rcGUI
-# Platform needs time to set up communication infrastructure
-echo "  Waiting for rcPlatform to initialize..."
-sleep 3
+# CRITICAL: Wait for AFECS container registration before starting rcGUI
+# The platform banner/port opening is NOT sufficient - we must wait for
+# the AFECS container (<hostname>_admin) to register with the platform.
+# Starting rcGUI before this causes "Problem communicating with the Platform" errors.
+echo ""
+echo "  Waiting for AFECS container to register..."
+echo "  (Platform is not ready for rcGUI until container registers)"
 
-# Verify platform is still running
-if kill -0 $PLATFORM_PID 2>/dev/null; then
-    echo "  rcPlatform is running (verified)"
+# Determine platform log file location
+# Platform logs typically go to $CODA_DATA/<expid>/dlog/platformDlog
+PLATFORM_LOG=""
+if [[ -n "$CODA_DATA" && -n "$EXPID" ]]; then
+    PLATFORM_LOG="${CODA_DATA}/${EXPID}/dlog/platformDlog"
+elif [[ -n "$EXPID" ]]; then
+    # Fallback: try current directory + expid
+    PLATFORM_LOG="./${EXPID}/dlog/platformDlog"
+fi
+
+# Wait for AFECS container registration (retry loop with timeout)
+AFECS_READY=false
+MAX_WAIT=30  # Maximum 30 seconds
+WAIT_COUNT=0
+LAST_LOG_SIZE=0
+
+while [[ $WAIT_COUNT -lt $MAX_WAIT ]]; do
+    # Verify platform is still running
+    if ! kill -0 $PLATFORM_PID 2>/dev/null; then
+        echo ""
+        echo "  ERROR: rcPlatform process died (PID $PLATFORM_PID not found)"
+        echo "  Cannot proceed to rcGUI startup"
+        break
+    fi
+
+    # Check platform log for AFECS container registration
+    if [[ -f "$PLATFORM_LOG" ]]; then
+        # Look for container registration messages:
+        # - "Afecs-4 Container" (container type)
+        # - "Name = <hostname>_admin" (admin agent registration)
+        # - "Connected to:" followed by platform details
+        if grep -q "Afecs-4 Container" "$PLATFORM_LOG" 2>/dev/null; then
+            # Found container registration - verify admin agent is there
+            if grep -q "_admin" "$PLATFORM_LOG" 2>/dev/null; then
+                AFECS_READY=true
+                echo ""
+                echo "  ✓ AFECS container registered — platform ready for rcGUI"
+
+                # Extract and show container info for confirmation
+                CONTAINER_HOST=$(grep "Name = .*_admin" "$PLATFORM_LOG" 2>/dev/null | tail -1 | sed 's/.*Name = //' | sed 's/_admin//')
+                if [[ -n "$CONTAINER_HOST" ]]; then
+                    echo "    Container: ${CONTAINER_HOST}_admin"
+                fi
+
+                break
+            fi
+        fi
+
+        # Show log activity indicator (only when log grows)
+        CURRENT_SIZE=$(wc -c < "$PLATFORM_LOG" 2>/dev/null || echo 0)
+        if [[ $CURRENT_SIZE -gt $LAST_LOG_SIZE ]]; then
+            echo -n "."
+            LAST_LOG_SIZE=$CURRENT_SIZE
+        fi
+    else
+        # Log file doesn't exist yet - platform still starting
+        echo -n "."
+    fi
+
+    sleep 1
+    WAIT_COUNT=$((WAIT_COUNT + 1))
+done
+
+echo ""
+
+# Check if we succeeded or timed out
+if [[ "$AFECS_READY" != "true" ]]; then
+    echo ""
+    echo "  WARNING: AFECS container did not register within ${MAX_WAIT} seconds"
+    echo "  Platform may not be fully ready for rcGUI"
+
+    if [[ -n "$PLATFORM_LOG" ]]; then
+        echo "  Check platform log: $PLATFORM_LOG"
+    else
+        echo "  Could not determine platform log location"
+        echo "  Set CODA_DATA and EXPID environment variables for better diagnostics"
+    fi
+
+    # Verify platform is at least still running
+    if kill -0 $PLATFORM_PID 2>/dev/null; then
+        echo "  Platform process is still running (PID: $PLATFORM_PID)"
+        echo "  Proceeding with rcGUI startup (may fail if platform not ready)"
+    else
+        echo "  ERROR: Platform process died during startup"
+        echo "  ABORTING: Cannot start rcGUI without platform"
+        exit 1
+    fi
 else
-    echo "  WARNING: rcPlatform process may have died (PID $PLATFORM_PID not found)"
+    echo "  Platform initialization: COMPLETE (${WAIT_COUNT} seconds)"
 fi
 
 echo ""
@@ -623,8 +710,8 @@ echo "************************************************************"
 echo "STAGE 3: Starting Run Control GUI (final step)"
 echo "************************************************************"
 echo "INFO: All components are running"
-echo "INFO: rcPlatform is running"
-echo "INFO: Starting rcGUI as final step..."
+echo "INFO: rcPlatform is running and AFECS container registered"
+echo "INFO: Platform is ready - starting rcGUI as final step..."
 echo ""
 
 # Start rcGUI in background - THIS IS THE LAST STEP
@@ -652,10 +739,10 @@ echo "Startup sequence:"
 echo "  1. ✓ Components launched in remote shells"
 if [[ -n "$CONFIG_FLAG" ]]; then
     echo "  2. ✓ Pedestal measurement and config generation completed"
-    echo "  3. ✓ rcPlatform started"
+    echo "  3. ✓ rcPlatform started and AFECS container registered"
     echo "  4. ✓ rcGUI started (final step)"
 else
-    echo "  2. ✓ rcPlatform started"
+    echo "  2. ✓ rcPlatform started and AFECS container registered"
     echo "  3. ✓ rcGUI started (final step)"
 fi
 echo ""
