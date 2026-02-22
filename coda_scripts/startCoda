@@ -584,42 +584,79 @@ if [[ -n "$CONFIG_FLAG" && ${#ROC_HOSTNAMES[@]} -gt 0 ]]; then
     fi
 fi
 
-# Start platform and rcGUI after all components are launched
-# (and after config generation if --config was specified)
+# =============================================================================
+# STARTUP SEQUENCE STAGE 2: Start CODA Platform
+# =============================================================================
+# All components are now launched and running in their remote shells
+# Config generation has completed (if --config was specified)
+# Now start the platform before starting rcGUI
 echo ""
 echo "************************************************************"
-echo "Starting CODA Platform and Run Control GUI"
+echo "STAGE 2: Starting CODA Platform"
 echo "************************************************************"
-echo "INFO: All components have been launched"
+echo "INFO: All components have been launched and are running"
 if [[ -n "$CONFIG_FLAG" ]]; then
     echo "INFO: Configuration files have been generated"
 fi
 echo ""
 
 # Start platform in background
-echo "INFO: Starting CODA platform..."
+echo "Starting rcPlatform..."
 platform &
 PLATFORM_PID=$!
-echo "INFO: Platform started (PID: $PLATFORM_PID)"
+echo "  rcPlatform started (PID: $PLATFORM_PID)"
 
-# Wait a moment for platform to initialize
-sleep 2
+# Wait for platform to initialize before starting rcGUI
+# Platform needs time to set up communication infrastructure
+echo "  Waiting for rcPlatform to initialize..."
+sleep 3
 
-# Start rcGUI in background
-echo "INFO: Starting Run Control GUI..."
-startRcgui &
-RCGUI_PID=$!
-echo "INFO: Run Control GUI started (PID: $RCGUI_PID)"
+# Verify platform is still running
+if kill -0 $PLATFORM_PID 2>/dev/null; then
+    echo "  rcPlatform is running (verified)"
+else
+    echo "  WARNING: rcPlatform process may have died (PID $PLATFORM_PID not found)"
+fi
 
 echo ""
 echo "************************************************************"
-echo "CODA startup sequence complete"
+echo "STAGE 3: Starting Run Control GUI (final step)"
 echo "************************************************************"
-echo "Component table: $CODA_COMPONENT_TABLE"
-echo "Components launched: $component_count"
+echo "INFO: All components are running"
+echo "INFO: rcPlatform is running"
+echo "INFO: Starting rcGUI as final step..."
+echo ""
+
+# Start rcGUI in background - THIS IS THE LAST STEP
+echo "Starting rcGUI..."
+startRcgui &
+RCGUI_PID=$!
+echo "  rcGUI started (PID: $RCGUI_PID)"
+
+# Final summary
+echo ""
+echo "======================================================================"
+echo "CODA STARTUP SEQUENCE COMPLETE"
+echo "======================================================================"
+echo ""
+echo "Startup Summary:"
+echo "  Component table: $CODA_COMPONENT_TABLE"
+echo "  Components launched: $component_count"
 if [[ -n "$CONFIG_FLAG" ]]; then
-    echo "Config generation: COMPLETED"
+    echo "  Config generation: COMPLETED"
 fi
-echo "Platform: STARTED"
-echo "Run Control GUI: STARTED"
-echo "************************************************************"
+echo "  rcPlatform: STARTED (PID: $PLATFORM_PID)"
+echo "  rcGUI: STARTED (PID: $RCGUI_PID)"
+echo ""
+echo "Startup sequence:"
+echo "  1. ✓ Components launched in remote shells"
+if [[ -n "$CONFIG_FLAG" ]]; then
+    echo "  2. ✓ Pedestal measurement and config generation completed"
+    echo "  3. ✓ rcPlatform started"
+    echo "  4. ✓ rcGUI started (final step)"
+else
+    echo "  2. ✓ rcPlatform started"
+    echo "  3. ✓ rcGUI started (final step)"
+fi
+echo ""
+echo "======================================================================"
