@@ -18,14 +18,18 @@ if [ -z $CODA ]; then
     exit -1
 fi
 
-if [ -z $CODA_COMPONENT_TABLE ]; then
-    echo "ERROR: CODA_COMPONENT_TABLE environment variable not defined!"
+# CODA_COMPONENT_TABLE can be set externally (legacy) or internally by startCoda
+# If not set at all, show a helpful error message
+if [ -z "$CODA_COMPONENT_TABLE" ]; then
+    echo "ERROR: CODA_COMPONENT_TABLE not set!"
+    echo "       This is typically set internally by startCoda via --file"
+    echo "       or can be set in your environment (legacy mode)"
     exit -1
 fi
 
-# check for the existance of the config CODA_COMPONENT_TABLE
-if [ ! -f $CODA_COMPONENT_TABLE ]; then
-    echo "ERROR: CODA_COMPONENT_TABLE not found!"
+# check for the existence of the config CODA_COMPONENT_TABLE
+if [ ! -f "$CODA_COMPONENT_TABLE" ]; then
+    echo "ERROR: CODA_COMPONENT_TABLE file not found: $CODA_COMPONENT_TABLE"
     exit -1
 fi
 

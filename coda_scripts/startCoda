@@ -7,8 +7,12 @@
 #
 # Options:
 #   --file <path>    Path to component definition file (REQUIRED)
+#                    This becomes the component table (CODA_COMPONENT_TABLE)
 #   --config         Run pedestal measurement and generate VME/VTP config files
 #   -h, --help       Show this help message
+#
+# Note: CODA_COMPONENT_TABLE environment variable is NO LONGER REQUIRED
+#       It is set internally from the --file argument
 #
 
 usage() {
@@ -17,7 +21,10 @@ Usage: startCoda --file <component_file> [--config]
 
 Options:
   --file <path>    Path to component definition file (REQUIRED)
+                   This is the source of the component table
                    The path may contain environment variables (e.g., \$CODA_SCRIPTS/file.txt)
+                   Note: CODA_COMPONENT_TABLE env var is NO LONGER REQUIRED
+                         (it is set internally from --file)
 
   --config         Run pedestal measurement (runfadc250ped) and generate configuration files
                    This option takes NO parameters
@@ -31,6 +38,12 @@ Options:
 
   -h, --help       Show this help message
 
+Startup Sequence:
+  1. Launch all components (ROC, FPGA, PEB, etc.) in their xterm windows
+  2. If --config: wait for pedestals, generate VME/VTP config files
+  3. Start CODA platform
+  4. Start Run Control GUI (rcGUI)
+
 Examples:
   startCoda --file run.cnf                           # Start CODA without config generation
   startCoda --file run.cnf --config                  # Start CODA with pedestal measurement and config generation
@@ -43,6 +56,12 @@ Component file format:
     clondaq3 PEB PEB1
     test2 ROC ROC1 -v
     test2vtp FPGA FPGA2 -v
+
+Environment Notes:
+  - CODA_COMPONENT_TABLE is NO LONGER REQUIRED in your environment
+  - It is automatically set from the --file argument
+  - Legacy scripts that set CODA_COMPONENT_TABLE externally will still work,
+    but --file takes precedence
 EOF
 }
 
@@ -111,6 +130,11 @@ if [[ ! -r "$RESOLVED_FILE" ]]; then
     echo "ERROR: Component file is not readable: $RESOLVED_FILE"
     exit 1
 fi
+
+# Export CODA_COMPONENT_TABLE for any scripts that need it (e.g., kill_remotes.sh)
+# This removes dependency on external environment variable
+export CODA_COMPONENT_TABLE="$RESOLVED_FILE"
+echo "INFO: Using component table: $CODA_COMPONENT_TABLE"
 
 echo "************************************************************"
 echo "Starting CODA components from file: $RESOLVED_FILE"
@@ -445,6 +469,7 @@ done < "$RESOLVED_FILE"
 echo "************************************************************"
 echo "Launched $component_count components"
 echo "************************************************************"
+echo ""
 
 # Generate configuration files when --config is specified
 if [[ -n "$CONFIG_FLAG" && ${#ROC_HOSTNAMES[@]} -gt 0 ]]; then
@@ -537,7 +562,42 @@ if [[ -n "$CONFIG_FLAG" && ${#ROC_HOSTNAMES[@]} -gt 0 ]]; then
     fi
 fi
 
-# Also start platform and rcgui in file-based mode
+# Start platform and rcGUI after all components are launched
+# (and after config generation if --config was specified)
+echo ""
+echo "************************************************************"
+echo "Starting CODA Platform and Run Control GUI"
+echo "************************************************************"
+echo "INFO: All components have been launched"
+if [[ -n "$CONFIG_FLAG" ]]; then
+    echo "INFO: Configuration files have been generated"
+fi
+echo ""
+
+# Start platform in background
+echo "INFO: Starting CODA platform..."
 platform &
+PLATFORM_PID=$!
+echo "INFO: Platform started (PID: $PLATFORM_PID)"
+
+# Wait a moment for platform to initialize
 sleep 2
+
+# Start rcGUI in background
+echo "INFO: Starting Run Control GUI..."
 startRcgui &
+RCGUI_PID=$!
+echo "INFO: Run Control GUI started (PID: $RCGUI_PID)"
+
+echo ""
+echo "************************************************************"
+echo "CODA startup sequence complete"
+echo "************************************************************"
+echo "Component table: $CODA_COMPONENT_TABLE"
+echo "Components launched: $component_count"
+if [[ -n "$CONFIG_FLAG" ]]; then
+    echo "Config generation: COMPLETED"
+fi
+echo "Platform: STARTED"
+echo "Run Control GUI: STARTED"
+echo "************************************************************"

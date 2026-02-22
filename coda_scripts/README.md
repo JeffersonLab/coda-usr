@@ -432,19 +432,45 @@ WARNING: base.cnf not found at: /path/to/config/base.cnf
 
 The script uses these environment variables:
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `CODA` | CODA installation directory | `/site/coda/3.10_devel` |
-| `CODA_SCRIPTS` | Directory containing this script | `/path/to/coda_scripts` |
-| `CODA_CONFIG` | Configuration directory for pedestal files | `/path/to/config` |
-| `SESSION` | CODA session name | `session` |
-| `EXPID` | Experiment ID | `hallb` |
+| Variable | Description | Required | Example |
+|----------|-------------|----------|---------|
+| `CODA` | CODA installation directory | Yes | `/site/coda/3.10_devel` |
+| `CODA_SCRIPTS` | Directory containing this script | Yes | `/path/to/coda_scripts` |
+| `CODA_CONFIG` | Configuration directory for pedestal files | Yes | `/path/to/config` |
+| `SESSION` | CODA session name | Optional | `session` |
+| `EXPID` | Experiment ID | Optional | `hallb` |
+| `CODA_COMPONENT_TABLE` | Component table file path | **NO** - Auto-set from --file | Set internally |
 
-Set these in your environment setup script (e.g., `setupCODA3.bash`).
+**Important:** `CODA_COMPONENT_TABLE` is **NO LONGER REQUIRED** in your environment. It is automatically set by startCoda from the `--file` argument. Legacy scripts that set it externally will still work, but it's not necessary.
+
+Set the required variables in your environment setup script (e.g., `setupCODA3.bash`).
 
 ## Testing
 
 Test scripts are provided in the coda_scripts directory:
+
+### Test Argument Validation
+```bash
+cd $CODA_SCRIPTS
+./test_startcoda_validation.sh
+```
+
+Verifies:
+- --file is required
+- --config parameter handling
+- Help text accuracy
+
+### Test Component Table Changes
+```bash
+cd $CODA_SCRIPTS
+./test_component_table_changes.sh
+```
+
+Verifies:
+- CODA_COMPONENT_TABLE no longer required in environment
+- Component table set from --file
+- Help text documents changes
+- Error messages are clear
 
 ### Test Configuration Generation
 ```bash
@@ -512,13 +538,14 @@ YINCR=280        # Y increment between rows
 
 ## See Also
 
+- `COMPONENT_TABLE_ENV_REMOVAL.md` - Environment variable removal and startup sequencing fixes
 - `STARTCODA_ARGUMENT_CHANGES.md` - Detailed documentation of argument parsing changes
 - `STAGE2_CHANGES.md` - Config file generation implementation notes
 - `STAGE3_CHANGES.md` - ROL code modifications for config handling
 - `EMAIL_SUMMARY.txt` - Summary for team communication (Stages 1-2)
 - `EMAIL_SUMMARY_STAGE3.txt` - Summary for team communication (Stage 3)
 - `setupCODA3.bash` - Environment setup
-- `coda_conf_functions` - Original component table parsing functions
+- `coda_conf_functions` - Component table parsing functions
 
 ## Support
 
@@ -530,6 +557,7 @@ For issues or questions:
 
 ## Version History
 
+- **Env Var Removal** (Feb 2026): Removed CODA_COMPONENT_TABLE external dependency, fixed startup sequencing
 - **Argument Changes** (Feb 2026): Made --file mandatory, --config parameterless flag
 - **Stage 3** (Feb 2026): Moved config/pedestal handling to ROL code
 - **Stage 2** (Feb 2026): Added automatic configuration file generation
