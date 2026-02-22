@@ -1,16 +1,114 @@
 #!/bin/bash
 #
-#  kcoda  - simplfied kcoda script
+#  kcoda  - kill CODA components script
+#
+# Usage:
+#   kcoda --file <component_file>
+#
+# Options:
+#   --file <path>    Path to component definition file (REQUIRED)
+#   -h, --help       Show this help message
+#
+# Note: CODA_COMPONENT_TABLE environment variable is NOT USED
+#       The --file argument is the only way to specify the component table
 #
 
+usage() {
+    cat <<EOF
+Usage: kcoda --file <component_file> [-h|--help]
+
+Kill all CODA components (rcGUI, platform, and remote components).
+
+Options:
+  --file <path>    Path to component definition file (REQUIRED)
+                   This specifies which components to kill
+                   The path may contain environment variables (e.g., \$CODA_SCRIPTS/file.txt)
+
+  -h, --help       Show this help message
+
+Examples:
+  kcoda --file /path/to/components.txt           # Kill components from specified file
+  kcoda --file \$CODA_SCRIPTS/components.txt     # Using environment variables in path
+
+Environment Notes:
+  - CODA_COMPONENT_TABLE is NOT used externally
+  - It is set internally from --file for compatibility with kill_remotes.sh
+  - Always use --file to specify the component table
+EOF
+}
+
+# Parse command line arguments
+COMPONENT_FILE=""
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --file)
+            if [[ -z "$2" || "$2" == --* ]]; then
+                echo "ERROR: --file requires a path argument"
+                usage
+                exit 1
+            fi
+            COMPONENT_FILE="$2"
+            shift 2
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            echo "ERROR: Unknown option: $1"
+            usage
+            exit 1
+            ;;
+    esac
+done
+
+# Validate that --file is provided (REQUIRED)
+if [[ -z "$COMPONENT_FILE" ]]; then
+    echo "Error: --file is required to kill CODA components."
+    echo ""
+    usage
+    exit 1
+fi
+
+# Resolve environment variables in the file path
+RESOLVED_FILE=$(eval echo "$COMPONENT_FILE")
+
+# Check if file exists and is readable
+if [[ ! -f "$RESOLVED_FILE" ]]; then
+    echo "ERROR: Component file not found: $RESOLVED_FILE"
+    echo "       (Original path: $COMPONENT_FILE)"
+    exit 1
+fi
+
+if [[ ! -r "$RESOLVED_FILE" ]]; then
+    echo "ERROR: Component file is not readable: $RESOLVED_FILE"
+    exit 1
+fi
+
+# Export CODA_COMPONENT_TABLE for kill_remotes.sh (internal use only)
+# This is NOT read from the environment - it's always set from --file
+export CODA_COMPONENT_TABLE="$RESOLVED_FILE"
+echo "INFO: Using component table: $CODA_COMPONENT_TABLE"
+
+echo ""
+echo "************************************************************"
+echo "Killing CODA Components"
+echo "************************************************************"
+
 # RCGUI
-echo "Killing rcgui"
+echo "Killing rcgui..."
 pkill -U $UID -f org.jlab.coda.afecs.ui.rcgui.RcGuiApplication
 
-# PEBs and ROCs
+# PEBs and ROCs (uses CODA_COMPONENT_TABLE exported above)
+echo "Killing remote components..."
 kill_remotes.sh
 
-
 # PLATFORM
-echo "Killing platform"
+echo "Killing platform..."
 pkill -f org.jlab.coda.afecs.platform.APlatform
+
+echo ""
+echo "************************************************************"
+echo "CODA components killed"
+echo "************************************************************"

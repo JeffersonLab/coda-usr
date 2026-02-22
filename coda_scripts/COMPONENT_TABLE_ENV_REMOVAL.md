@@ -1,22 +1,23 @@
-# CODA_COMPONENT_TABLE Environment Variable Removal
+# CODA_COMPONENT_TABLE Environment Variable Complete Removal
 
 ## Overview
-This document describes the changes made to remove the dependency on the `CODA_COMPONENT_TABLE` environment variable being set externally by users, and to fix the startup sequencing to ensure platform and rcGUI start after all components.
+This document describes the changes made to completely remove the `CODA_COMPONENT_TABLE` environment variable from user-facing usage, and to fix the startup sequencing to ensure platform and rcGUI start after all components.
 
 ## Changes Summary
 
-### A) Removed External CODA_COMPONENT_TABLE Requirement
+### A) Completely Removed External CODA_COMPONENT_TABLE Usage
 
 **Previous Behavior:**
-- Users had to set `CODA_COMPONENT_TABLE` environment variable before running startCoda
+- Users had to set `CODA_COMPONENT_TABLE` environment variable before running startCoda or kcoda
 - Scripts like `coda_conf_functions` and `kill_remotes.sh` expected this to be set externally
 - Failure to set it resulted in errors
 
 **New Behavior:**
-- `CODA_COMPONENT_TABLE` is **NO LONGER REQUIRED** in user environment
-- startCoda automatically exports `CODA_COMPONENT_TABLE` from the `--file` argument
-- The `--file` argument is the source of truth for the component table
-- Legacy scripts that set `CODA_COMPONENT_TABLE` externally still work (backward compatible)
+- `CODA_COMPONENT_TABLE` is **NOT USED** from user environment
+- startCoda and kcoda both REQUIRE `--file` argument
+- `CODA_COMPONENT_TABLE` is automatically exported internally from `--file` for compatibility with helper scripts
+- Users should **NEVER** set `CODA_COMPONENT_TABLE` in their environment
+- The `--file` argument is the only source of truth for the component table
 
 ### B) Internal Export from --file
 
@@ -284,18 +285,21 @@ Run Control GUI: STARTED
 # Had to set CODA_COMPONENT_TABLE manually
 export CODA_COMPONENT_TABLE=/path/to/components.txt
 startCoda --file /path/to/components.txt
+kcoda  # Used CODA_COMPONENT_TABLE from environment
 ```
 
 **After:**
 ```bash
-# CODA_COMPONENT_TABLE no longer needed!
+# CODA_COMPONENT_TABLE not used - just use --file
 startCoda --file /path/to/components.txt
+kcoda --file /path/to/components.txt  # kcoda now requires --file too
 ```
 
 **Key Points:**
-- You no longer need to set `CODA_COMPONENT_TABLE` in your environment
-- Just use `--file` and startCoda handles the rest
-- If you have `CODA_COMPONENT_TABLE` in your setup script, you can remove it (but leaving it won't break anything)
+- **REMOVE** `CODA_COMPONENT_TABLE` from your environment setup scripts
+- Use `--file` for both startCoda and kcoda
+- Do NOT set `CODA_COMPONENT_TABLE` in your environment
+- `CODA_COMPONENT_TABLE` is only used internally by the scripts
 
 ### For Script Developers
 

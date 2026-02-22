@@ -7,12 +7,12 @@
 #
 # Options:
 #   --file <path>    Path to component definition file (REQUIRED)
-#                    This becomes the component table (CODA_COMPONENT_TABLE)
+#                    This is used as the component table
 #   --config         Run pedestal measurement and generate VME/VTP config files
 #   -h, --help       Show this help message
 #
-# Note: CODA_COMPONENT_TABLE environment variable is NO LONGER REQUIRED
-#       It is set internally from the --file argument
+# Note: CODA_COMPONENT_TABLE is set internally from --file for compatibility
+#       Do NOT set CODA_COMPONENT_TABLE in your environment
 #
 
 usage() {
@@ -58,10 +58,10 @@ Component file format:
     test2vtp FPGA FPGA2 -v
 
 Environment Notes:
-  - CODA_COMPONENT_TABLE is NO LONGER REQUIRED in your environment
-  - It is automatically set from the --file argument
-  - Legacy scripts that set CODA_COMPONENT_TABLE externally will still work,
-    but --file takes precedence
+  - CODA_COMPONENT_TABLE is NOT used from your environment
+  - It is automatically set internally from the --file argument
+  - Do NOT set CODA_COMPONENT_TABLE in your environment
+  - Use --file to specify the component table
 EOF
 }
 

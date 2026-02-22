@@ -432,16 +432,16 @@ WARNING: base.cnf not found at: /path/to/config/base.cnf
 
 The script uses these environment variables:
 
-| Variable | Description | Required | Example |
-|----------|-------------|----------|---------|
-| `CODA` | CODA installation directory | Yes | `/site/coda/3.10_devel` |
-| `CODA_SCRIPTS` | Directory containing this script | Yes | `/path/to/coda_scripts` |
-| `CODA_CONFIG` | Configuration directory for pedestal files | Yes | `/path/to/config` |
+| Variable | Description | User Sets? | Example |
+|----------|-------------|------------|---------|
+| `CODA` | CODA installation directory | **YES** | `/site/coda/3.10_devel` |
+| `CODA_SCRIPTS` | Directory containing this script | **YES** | `/path/to/coda_scripts` |
+| `CODA_CONFIG` | Configuration directory for pedestal files | **YES** | `/path/to/config` |
 | `SESSION` | CODA session name | Optional | `session` |
 | `EXPID` | Experiment ID | Optional | `hallb` |
-| `CODA_COMPONENT_TABLE` | Component table file path | **NO** - Auto-set from --file | Set internally |
+| `CODA_COMPONENT_TABLE` | Component table file path | **NO** - Internal only | Set by startCoda/kcoda from --file |
 
-**Important:** `CODA_COMPONENT_TABLE` is **NO LONGER REQUIRED** in your environment. It is automatically set by startCoda from the `--file` argument. Legacy scripts that set it externally will still work, but it's not necessary.
+**Important:** `CODA_COMPONENT_TABLE` is **NOT** set by users. It is used internally by startCoda and kcoda, which automatically set it from the `--file` argument. Do NOT set this variable in your environment.
 
 Set the required variables in your environment setup script (e.g., `setupCODA3.bash`).
 

@@ -18,12 +18,18 @@ if [ -z $CODA ]; then
     exit -1
 fi
 
-# CODA_COMPONENT_TABLE can be set externally (legacy) or internally by startCoda
-# If not set at all, show a helpful error message
+# CODA_COMPONENT_TABLE must be set internally by startCoda or kcoda
+# Users should NOT set this in their environment
 if [ -z "$CODA_COMPONENT_TABLE" ]; then
     echo "ERROR: CODA_COMPONENT_TABLE not set!"
-    echo "       This is typically set internally by startCoda via --file"
-    echo "       or can be set in your environment (legacy mode)"
+    echo ""
+    echo "This variable is set internally by startCoda or kcoda from the --file argument."
+    echo "You should not set it directly in your environment."
+    echo ""
+    echo "To use CODA components:"
+    echo "  - Start CODA:  startCoda --file /path/to/components.txt"
+    echo "  - Kill CODA:   kcoda --file /path/to/components.txt"
+    echo ""
     exit -1
 fi
 
