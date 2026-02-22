@@ -136,14 +136,25 @@ fi
 export CODA_COMPONENT_TABLE="$RESOLVED_FILE"
 echo "INFO: Using component table: $CODA_COMPONENT_TABLE"
 
+# Create log directory for component session logs
+# This prevents "No such file or directory" errors from tee
+mkdir -p coda_tmp_log
+echo "INFO: Log directory: $(pwd)/coda_tmp_log"
+
+echo ""
 echo "************************************************************"
 echo "Starting CODA components from file: $RESOLVED_FILE"
 if [[ -n "$CONFIG_FLAG" ]]; then
-    echo "Config generation: ENABLED (pedestal measurement + VME/VTP config files)"
+    echo "Config generation: ENABLED"
+    echo "  - ROC components will run pedestal measurement"
+    echo "  - VME/VTP config files will be generated from base.cnf"
 else
     echo "Config generation: DISABLED"
+    echo "  - Components will start normally (no pedestal measurement)"
+    echo "  - No config file generation"
 fi
 echo "************************************************************"
+echo ""
 
 # Source necessary functions and setup
 . ${CODA_SCRIPTS}/coda_xterms_functions 2>/dev/null || true
@@ -393,12 +404,15 @@ launch_component() {
             ;;
     esac
 
-    # Special handling for ROC components
-    if [[ "$comp_type" == "ROC" ]]; then
-        # For ROC: remote login to host, cd to fadc-peds, and run fadc250peds
+    # Special handling for ROC components ONLY when --config is enabled
+    # CRITICAL: Pedestal measurement must ONLY happen when CONFIG_FLAG is set
+    if [[ "$comp_type" == "ROC" && -n "$CONFIG_FLAG" ]]; then
+        # Config mode: Run fadc250peds to generate pedestals for config generation
+        echo "  [Config mode] Running pedestal measurement for ROC on $hostname"
         xterm_cmd="remote_vme $hostname nobody \"cd \\\$CODA/linuxvme/fadc-peds && ./fadc250peds \\\$CODA_CONFIG/${hostname}.peds\" 2>&1 | tee coda_tmp_log/${hostname}_${comp_name}_lastsession.log"
     else
-        # For other components: use existing pattern (remote_vme + start script)
+        # Normal mode: Use standard start script for all components (including ROC)
+        # This preserves original startCoda behavior when --config is NOT specified
         xterm_cmd="remote_vme $hostname nobody ${CODA_SCRIPTS}/start${comp_type}.sh $comp_name $comp_options 2>&1 | tee coda_tmp_log/${hostname}_${comp_name}_lastsession.log"
     fi
 
@@ -446,7 +460,15 @@ while IFS= read -r line || [[ -n "$line" ]]; do
         continue
     fi
 
-    echo "Launching: $comp_type $comp_name on $hostname (options: $rest)"
+    # Show what action will be taken for this component
+    if [[ "$comp_type" == "ROC" && -n "$CONFIG_FLAG" ]]; then
+        echo "Launching: $comp_type $comp_name on $hostname (MODE: pedestal measurement)"
+    else
+        echo "Launching: $comp_type $comp_name on $hostname (MODE: normal startup)"
+    fi
+    if [[ -n "$rest" ]]; then
+        echo "  Options: $rest"
+    fi
 
     # Track ROC hostnames for config generation
     if [[ "$comp_type" == "ROC" ]]; then

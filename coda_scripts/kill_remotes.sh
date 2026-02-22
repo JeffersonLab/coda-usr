@@ -33,8 +33,10 @@ if [ $? == 1 ] ; then
 
 
     # kill the remote_vme connections for the ROCs
-    echo "Killing local remote_vme startROC.sh connections"
+    # This covers both normal mode (startROC.sh) and config mode (fadc250peds)
+    echo "Killing local remote_vme ROC connections"
     pkill -U $UID -f "remote_vme.*startROC.sh"
+    pkill -U $UID -f "remote_vme.*fadc250peds"
 
 
     # now kill the ROC, if it's still runnin gon the remote host
