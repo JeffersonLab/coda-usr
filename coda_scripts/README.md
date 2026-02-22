@@ -41,33 +41,20 @@ chmod +x ${CODA_SCRIPTS}/startCoda
 ### Basic Syntax
 
 ```bash
-startCoda [--file <component_file>] [--config <config_value>] [-h|--help]
+startCoda --file <component_file> [--config] [-h|--help]
 ```
 
 ### Options
 
 | Option | Required | Description |
 |--------|----------|-------------|
-| `--file <path>` | Yes (for file-based mode) | Path to component definition file. Supports environment variables. |
-| `--config <name>` | No | Configuration name. Enables automatic config file generation. |
+| `--file <path>` | **YES** | Path to component definition file. Supports environment variables. |
+| `--config` | No | Enable pedestal measurement and config file generation. Takes NO parameters. |
 | `-h, --help` | No | Display help message and exit. |
 
 ## Usage Examples
 
-### 1. Default Behavior (Original Mode)
-
-Launch using the default component table:
-
-```bash
-./startCoda
-```
-
-This runs:
-- `platform &`
-- `startXterms &`
-- `startRcgui &`
-
-### 2. File-Based Launch (No Config Generation)
+### 1. File-Based Launch (No Config Generation)
 
 Launch components from a file without generating configuration files:
 
@@ -75,21 +62,29 @@ Launch components from a file without generating configuration files:
 ./startCoda --file /path/to/components.txt
 ```
 
-### 3. File-Based Launch with Config Generation
+This will:
+- Launch all components defined in the file
+- NOT run pedestal measurement
+- NOT generate configuration files
+- Output: "Config generation: DISABLED"
+
+### 2. File-Based Launch with Config Generation
 
 Launch components AND generate configuration files:
 
 ```bash
-./startCoda --file components.txt --config myconfig
+./startCoda --file components.txt --config
 ```
 
 This will:
 1. Launch all components defined in the file
-2. Wait for pedestal files to be generated
-3. Create `vme_<hostname>.cnf` for each ROC host
-4. Create `vtp_<hostname>.cnf` for each ROC host
+2. Run pedestal measurement for ROC components
+3. Wait for pedestal files to be generated
+4. Create `vme_<hostname>.cnf` for each ROC host (using base.cnf + pedestals)
+5. Create `vtp_<hostname>.cnf` for each ROC host (using base.cnf + computed VTP_PAYLOAD_EN)
+6. Output: "Config generation: ENABLED (pedestal measurement + VME/VTP config files)"
 
-### 4. Using Environment Variables
+### 3. Using Environment Variables
 
 ```bash
 # Set up environment
@@ -97,14 +92,24 @@ export CODA_SCRIPTS=/path/to/coda_scripts
 export CODA_CONFIG=/path/to/config
 
 # Launch using environment variables in path
-./startCoda --file $CODA_SCRIPTS/config/hallB/components.txt --config hallb
+./startCoda --file $CODA_SCRIPTS/config/hallB/components.txt --config
 ```
 
-### 5. Using Relative Paths
+### 4. Using Relative Paths
 
 ```bash
 cd $CODA_SCRIPTS
-./startCoda --file ./test_components.txt --config test
+./startCoda --file ./test_components.txt --config
+```
+
+### 5. Invalid Usage (Will Fail)
+
+Running without `--file` is **not allowed**:
+
+```bash
+./startCoda
+# Error: --file is required to start CODA.
+# Exit code: 1
 ```
 
 ## Component File Format
@@ -322,6 +327,32 @@ coda_tmp_log/test2vtp_FPGA2_lastsession.log
 
 ## Troubleshooting
 
+### Missing --file Argument
+
+**Error:**
+```
+Error: --file is required to start CODA.
+```
+
+**Solution:**
+- Always provide the `--file` argument with a path to your component file
+- Example: `./startCoda --file components.txt`
+
+### --config Parameter Warning
+
+**Warning:**
+```
+WARNING: --config does not take parameters. Ignoring provided value(s).
+```
+
+**Explanation:**
+- `--config` is a flag and does not accept parameters
+- If you provided a value (e.g., `--config myconfig`), it will be ignored
+- The script will continue normally with config generation enabled
+
+**Solution:**
+- Use `--config` without any value: `./startCoda --file components.txt --config`
+
 ### Component File Not Found
 
 **Error:**
@@ -471,17 +502,21 @@ YINCR=280        # Y increment between rows
 
 ## Notes
 
-1. **Backward Compatibility**: Running `./startCoda` without arguments preserves original behavior
-2. **Parallel Launch**: Components are launched sequentially with 0.5s delay between each
-3. **Platform & RcGui**: Always started in file-based mode (platform in background, RcGui after 2s delay)
-4. **Config Generation**: Only occurs when `--config` is specified AND ROC components exist
-5. **File Paths**: Both absolute and relative paths are supported
-6. **Xterm Colors**: Each component type has a distinct color for easy identification
+1. **Mandatory --file**: The `--file` argument is now REQUIRED for all executions (no default behavior)
+2. **--config is a Flag**: The `--config` option takes NO parameters (previously required a config name)
+3. **Parallel Launch**: Components are launched sequentially with 0.5s delay between each
+4. **Platform & RcGui**: Always started in file-based mode (platform in background, RcGui after 2s delay)
+5. **Config Generation**: Only occurs when `--config` flag is present AND ROC components exist
+6. **File Paths**: Both absolute and relative paths are supported
+7. **Xterm Colors**: Each component type has a distinct color for easy identification
 
 ## See Also
 
-- `STAGE2_CHANGES.md` - Detailed implementation notes
-- `EMAIL_SUMMARY.txt` - Summary for team communication
+- `STARTCODA_ARGUMENT_CHANGES.md` - Detailed documentation of argument parsing changes
+- `STAGE2_CHANGES.md` - Config file generation implementation notes
+- `STAGE3_CHANGES.md` - ROL code modifications for config handling
+- `EMAIL_SUMMARY.txt` - Summary for team communication (Stages 1-2)
+- `EMAIL_SUMMARY_STAGE3.txt` - Summary for team communication (Stage 3)
 - `setupCODA3.bash` - Environment setup
 - `coda_conf_functions` - Original component table parsing functions
 
@@ -495,6 +530,8 @@ For issues or questions:
 
 ## Version History
 
+- **Argument Changes** (Feb 2026): Made --file mandatory, --config parameterless flag
+- **Stage 3** (Feb 2026): Moved config/pedestal handling to ROL code
 - **Stage 2** (Feb 2026): Added automatic configuration file generation
 - **Stage 1** (Feb 2026): Added file-based component launching with --file and --config parameters
 - **Original**: Basic component launching via startXterms

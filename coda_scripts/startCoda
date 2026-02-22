@@ -3,31 +3,37 @@
 # startCoda script
 #
 # Usage:
-#   startCoda [--file <component_file>] [--config <config_value>]
+#   startCoda --file <component_file> [--config]
 #
 # Options:
-#   --file <path>    Path to component definition file (supports env vars like $VAR/path)
-#   --config <name>  Optional configuration name
+#   --file <path>    Path to component definition file (REQUIRED)
+#   --config         Run pedestal measurement and generate VME/VTP config files
 #   -h, --help       Show this help message
-#
-# If --file is not provided, uses the default component table and launches
-# platform, startXterms, and startRcgui.
 #
 
 usage() {
     cat <<EOF
-Usage: startCoda [--file <component_file>] [--config <config_value>]
+Usage: startCoda --file <component_file> [--config]
 
 Options:
-  --file <path>    Path to component definition file (required for file-based mode)
+  --file <path>    Path to component definition file (REQUIRED)
                    The path may contain environment variables (e.g., \$CODA_SCRIPTS/file.txt)
-  --config <name>  Optional configuration name (sets CODA_CONFIG environment)
+
+  --config         Run pedestal measurement (runfadc250ped) and generate configuration files
+                   This option takes NO parameters
+                   When present:
+                     - Runs pedestal measurement for ROC components
+                     - Uses base.cnf together with pedestal results
+                     - Generates vme_<hostname>.cnf for VME components
+                     - Generates vtp_<hostname>.cnf for VTP components
+                   When absent:
+                     - Simply starts CODA components from file (no config generation)
+
   -h, --help       Show this help message
 
 Examples:
-  startCoda                                          # Use default behavior
-  startCoda --file /path/to/components.txt           # Launch from file
-  startCoda --file \$CODA_SCRIPTS/components.txt --config myconfig
+  startCoda --file run.cnf                           # Start CODA without config generation
+  startCoda --file run.cnf --config                  # Start CODA with pedestal measurement and config generation
 
 Component file format:
   # Lines starting with # are comments
@@ -42,7 +48,7 @@ EOF
 
 # Parse command line arguments
 COMPONENT_FILE=""
-CONFIG_VALUE=""
+CONFIG_FLAG=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -56,13 +62,14 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         --config)
-            if [[ -z "$2" || "$2" == --* ]]; then
-                echo "ERROR: --config requires a value argument"
-                usage
-                exit 1
+            CONFIG_FLAG="true"
+            # Check if next argument looks like a parameter (not a flag)
+            if [[ -n "$2" && "$2" != --* ]]; then
+                echo "WARNING: --config does not take parameters. Ignoring provided value(s)."
+                shift 2  # Skip the provided argument
+            else
+                shift 1  # Just shift past --config
             fi
-            CONFIG_VALUE="$2"
-            shift 2
             ;;
         -h|--help)
             usage
@@ -76,18 +83,12 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# If --file is not provided, use default behavior
+# Validate that --file is provided (REQUIRED)
 if [[ -z "$COMPONENT_FILE" ]]; then
-    platform &
-    sleep 10
-    startXterms &
-    startRcgui &
-    exit 0
-fi
-
-# Set config if provided
-if [[ -n "$CONFIG_VALUE" ]]; then
-    export CODA_CONFIG="$CONFIG_VALUE"
+    echo "Error: --file is required to start CODA."
+    echo ""
+    usage
+    exit 1
 fi
 
 # Resolve environment variables in the file path
@@ -113,8 +114,10 @@ fi
 
 echo "************************************************************"
 echo "Starting CODA components from file: $RESOLVED_FILE"
-if [[ -n "$CONFIG_VALUE" ]]; then
-    echo "Using configuration: $CONFIG_VALUE"
+if [[ -n "$CONFIG_FLAG" ]]; then
+    echo "Config generation: ENABLED (pedestal measurement + VME/VTP config files)"
+else
+    echo "Config generation: DISABLED"
 fi
 echo "************************************************************"
 
@@ -444,7 +447,7 @@ echo "Launched $component_count components"
 echo "************************************************************"
 
 # Generate configuration files when --config is specified
-if [[ -n "$CONFIG_VALUE" && ${#ROC_HOSTNAMES[@]} -gt 0 ]]; then
+if [[ -n "$CONFIG_FLAG" && ${#ROC_HOSTNAMES[@]} -gt 0 ]]; then
     echo ""
     echo "************************************************************"
     echo "Generating configuration files for ROC hosts"
