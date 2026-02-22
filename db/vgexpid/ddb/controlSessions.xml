@@ -1,0 +1,12 @@
+<control>
+   <session>
+      <name>davetest</name>
+      <config>stream_vtp2</config>
+      <runnumber>372</runnumber>
+   </session>
+   <session>
+      <name>vgtest</name>
+      <config>HallBSRO</config>
+      <runnumber>442</runnumber>
+   </session>
+</control>

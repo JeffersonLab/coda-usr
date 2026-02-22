@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<component name="LB">
+
+   <transports>
+
+   </transports>
+
+   <modules>
+
+     <EbModule class="EventBuilding" id="9" threads="1" timeStats="off" runData="false" tsCheck="true" tsSlop="2" sparsify="false" endian="big"> 
+
+     </EbModule>
+
+   </modules>
+
+</component>
+

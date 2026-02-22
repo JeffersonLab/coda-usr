@@ -1,0 +1,26 @@
+<registration>
+   <client>
+      <name>adcecal1vtp</name>
+      <hostname>adcecal1vtp.jlab.org</hostname>
+      <containerhost>clondaq3.jlab.org</containerhost>
+      <portnumber>45700</portnumber>
+   </client>
+   <client>
+      <name>adcecal1</name>
+      <hostname>adcecal1.jlab.org</hostname>
+      <containerhost>clondaq3.jlab.org</containerhost>
+      <portnumber>45700</portnumber>
+   </client>
+   <client>
+      <name>adcecal2</name>
+      <hostname>adcecal2.jlab.org</hostname>
+      <containerhost>clondaq3.jlab.org</containerhost>
+      <portnumber>45700</portnumber>
+   </client>
+   <client>
+      <name>adcecal2vtp</name>
+      <hostname>adcecal2vtp.jlab.org</hostname>
+      <containerhost>clondaq3.jlab.org</containerhost>
+      <portnumber>45700</portnumber>
+   </client>
+</registration>

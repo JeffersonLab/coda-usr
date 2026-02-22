@@ -49,8 +49,8 @@ FADC250_DAC 3270
 ############################################
 
 # Streaming V2 firmware
-VTP_FIRMWARE_Z7           fe_vtp_z7_streamingv3_Mar02.bin
-VTP_FIRMWARE_V7           fe_vtp_v7_fadc_streamingv3_Mar15.2.bin
+VTP_FIRMWARE_Z7           fe_vtp_z7_streamingv3_ejfat_v5.bin
+VTP_FIRMWARE_V7           fe_vtp_v7_fadc_streamingv3_ejfat.bin
 
 
 VTP_STREAMING_ROCID       0

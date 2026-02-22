@@ -1,0 +1,6 @@
+name                  = VM1
+type                  = ROC
+priority              = 1010
+code                  = {$env(CODA_ROL)/vme_rol/fadc_vme.so undefined} 
+isMaster              = false
+output                = None 

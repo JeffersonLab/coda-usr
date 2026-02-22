@@ -1,0 +1,6 @@
+name                  = VT1
+type                  = FPGA
+priority              = 1210
+code                  = {$env(CODA_ROL)/vtp_rol/vtp_sro_1udp.so undefined} 
+isMaster              = true
+output                = None

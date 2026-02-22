@@ -1,0 +1,20 @@
+<rdf:RDF
+xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+xmlns:cool="http://AFECSHOMEDB/schema/cool#"
+>
+
+<rdf:Description rdf:about="http://COOLHOME/Control/hallb-sro/hallb-sro#hallb-sro">
+
+   <cool:include rdf:resource="http://COOLHOME/Control/hallb-sro/Components/VT1.rdf"/>
+   <cool:hasComponent rdf:resource="http://COOLHOME/Control/hallb-sro/Components/VT1#VT1"/>
+
+
+   <cool:include rdf:resource="http://COOLHOME/Control/hallb-sro/Components/LB.rdf"/>
+   <cool:hasComponent rdf:resource="http://COOLHOME/Control/hallb-sro/Components/LB#LB"/>
+
+
+   <cool:include rdf:resource="http://COOLHOME/Control/hallb-sro/Components/VM1.rdf"/>
+   <cool:hasComponent rdf:resource="http://COOLHOME/Control/hallb-sro/Components/VM1#VM1"/>
+
+</rdf:Description>
+</rdf:RDF>
