@@ -252,6 +252,8 @@ static int vtp_get_src_id(uint32_t *out)
  *   - VTP_ENABLE_EJFAT -> enableEjfat
  *   - VTP_STREAMING_DESTIP -> emuip
  *   - VTP_STREAMING_DESTIPPORT -> emuport
+ *   - VTP_FIRMWARE_Z7 -> firmwareZ7 (buffer must be at least 256 bytes)
+ *   - VTP_FIRMWARE_V7 -> firmwareV7 (buffer must be at least 256 bytes)
  */
 static void
 vtp_read_all_from_cfg(const char *cfg_path,
@@ -260,7 +262,9 @@ vtp_read_all_from_cfg(const char *cfg_path,
                        int *localPort,
                        int *enableEjfat,
                        unsigned int *emuip,
-                       unsigned int *emuport)
+                       unsigned int *emuport,
+                       char *firmwareZ7,
+                       char *firmwareV7)
 {
   FILE *f;
   char line[1024];
@@ -359,6 +363,26 @@ vtp_read_all_from_cfg(const char *cfg_path,
           *enableEjfat = val_tmp;
           printf("CONFIG: Read enableEjfat = %d from key 'VTP_ENABLE_EJFAT'\n", val_tmp);
         }
+      }
+    }
+    else if (strcmp(key, "VTP_FIRMWARE_Z7") == 0)
+    {
+      if (firmwareZ7)
+      {
+        /* Firmware filename - copy string value */
+        strncpy(firmwareZ7, val, 255);
+        firmwareZ7[255] = '\0';
+        printf("CONFIG: Read firmwareZ7 = '%s' from key 'VTP_FIRMWARE_Z7'\n", firmwareZ7);
+      }
+    }
+    else if (strcmp(key, "VTP_FIRMWARE_V7") == 0)
+    {
+      if (firmwareV7)
+      {
+        /* Firmware filename - copy string value */
+        strncpy(firmwareV7, val, 255);
+        firmwareV7[255] = '\0';
+        printf("CONFIG: Read firmwareV7 = '%s' from key 'VTP_FIRMWARE_V7'\n", firmwareV7);
       }
     }
   }
@@ -545,6 +569,9 @@ rocDownload()
   int stat;
   char buf[1000];
   const char *coda_firmware;
+  char vtp_config_path[512];
+  char z7file[256] = {0};  /* Firmware filenames from config - must be read, no defaults */
+  char v7file[256] = {0};
 
   /* Get CODA_FIRMWARE environment variable (default firmware directory) */
   coda_firmware = getenv("CODA_FIRMWARE");
@@ -565,21 +592,61 @@ rocDownload()
     printf("INFO: Using firmware directory: %s\n", coda_firmware);
   }
 
-  /* Streaming Version 3 firmware files for VTP */
-
-  /* Get firmware filenames from config (already set by vtpConfig) */
-  const char *z7file = vtpGetFirmwareZ7();
-  const char *v7file = vtpGetFirmwareV7();
-
-  /* Validate firmware filenames */
-  if (!z7file || !*z7file) {
-    printf("WARNING: Z7 firmware filename not set in config, using default\n");
-    z7file = "fe_vtp_z7_streamingv3_ejfat_v5.bin";
+  /* Read VTP config file to get firmware filenames */
+  /* Use userconfig if defined, otherwise use default per-host config file */
+  if (rol->usrConfig && *rol->usrConfig)
+  {
+    /* userconfig is defined - use it */
+    printf("INFO: Using user-specified VTP config file: %s\n", rol->usrConfig);
+    snprintf(vtp_config_path, sizeof(vtp_config_path), "%s", rol->usrConfig);
   }
-  if (!v7file || !*v7file) {
-    printf("WARNING: V7 firmware filename not set in config, using default\n");
-    v7file = "fe_vtp_v7_fadc_streamingv3_ejfat.bin";
+  else
+  {
+    /* userconfig NOT defined - use default per-host config file */
+    printf("INFO: userconfig not defined, using default per-host VTP config file\n");
+
+    /* Construct default config path: $CODA_CONFIG/vtp_<hostname>.cnf */
+    if (vtp_get_generated_config_path(vtp_config_path, sizeof(vtp_config_path)) != 0)
+    {
+      printf("ERROR: Failed to construct default VTP config path\n");
+      printf("ERROR: Cannot determine vtp_<hostname>.cnf location\n");
+      return;
+    }
+
+    printf("INFO: Using default per-host VTP config: %s\n", vtp_config_path);
   }
+
+  /* Verify config file exists */
+  if (access(vtp_config_path, R_OK) != 0)
+  {
+    printf("ERROR: VTP config file '%s' not found or not readable: %s\n",
+           vtp_config_path, strerror(errno));
+    printf("ERROR: Expected location (when userconfig not defined): $CODA_CONFIG/vtp_<hostname>.cnf\n");
+    return;
+  }
+
+  printf("INFO: VTP config file verified: %s\n", vtp_config_path);
+
+  /* Read firmware filenames from config file */
+  vtp_read_all_from_cfg(vtp_config_path, NULL, NULL, NULL, NULL, NULL, NULL, z7file, v7file);
+
+  /* VALIDATION: Firmware filenames are MANDATORY - no silent defaults */
+  if (z7file[0] == '\0')
+  {
+    printf("ERROR: Z7 firmware filename not found in config file!\n");
+    printf("ERROR: Config must contain: VTP_FIRMWARE_Z7 <filename>\n");
+    printf("ERROR: Example: VTP_FIRMWARE_Z7 fe_vtp_z7_streamingv3_ejfat_v5.bin\n");
+    return;
+  }
+  if (v7file[0] == '\0')
+  {
+    printf("ERROR: V7 firmware filename not found in config file!\n");
+    printf("ERROR: Config must contain: VTP_FIRMWARE_V7 <filename>\n");
+    printf("ERROR: Example: VTP_FIRMWARE_V7 fe_vtp_v7_fadc_streamingv3_ejfat.bin\n");
+    return;
+  }
+
+  printf("CONFIG VALIDATION: Firmware files from config: Z7='%s', V7='%s'\n", z7file, v7file);
 
   firstEvent = 1;
 
@@ -724,7 +791,7 @@ rocPrestart()
      * Bypasses broken vtpGet*() functions that return 0.
      */
     vtp_read_all_from_cfg(vtp_config_path, &numConnections, &netMode,
-                          &localport, &enableEjfat, &emuip, &emuport);
+                          &localport, &enableEjfat, &emuip, &emuport, NULL, NULL);
   }
 
   /* VALIDATION: Verify all required parameters were read from config file.
@@ -999,7 +1066,7 @@ rocGo()
   if (vtp_get_generated_config_path(vtp_config_path, sizeof(vtp_config_path)) == 0 &&
       access(vtp_config_path, R_OK) == 0)
   {
-    vtp_read_all_from_cfg(vtp_config_path, &numConnections, NULL, NULL, NULL, NULL, NULL);
+    vtp_read_all_from_cfg(vtp_config_path, &numConnections, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
   }
   if (numConnections == 0) numConnections = 1;  /* Emergency fallback */
 
@@ -1080,7 +1147,7 @@ rocEnd()
   if (vtp_get_generated_config_path(vtp_config_path, sizeof(vtp_config_path)) == 0 &&
       access(vtp_config_path, R_OK) == 0)
   {
-    vtp_read_all_from_cfg(vtp_config_path, &numConnections, NULL, NULL, NULL, NULL, NULL);
+    vtp_read_all_from_cfg(vtp_config_path, &numConnections, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
   }
   if (numConnections == 0) numConnections = 1;  /* Emergency fallback */
 
