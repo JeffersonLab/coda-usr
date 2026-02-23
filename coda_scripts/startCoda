@@ -600,10 +600,24 @@ if [[ -n "$CONFIG_FLAG" ]]; then
 fi
 echo ""
 
-# Start platform in background
+# Start platform in background with output capture
 echo "Starting rcPlatform..."
-platform &
+
+# Create a real-time log file to capture platform stdout/stderr
+# This allows us to monitor platform output immediately without relying on
+# buffered log files that may not exist or may be written asynchronously
+PLATFORM_REALTIME_LOG="coda_tmp_log/platform_output_$$.log"
+touch "$PLATFORM_REALTIME_LOG"
+
+# Start platform with output redirected to our monitored file
+# We also tail it to the console so the user sees platform output in real-time
+platform > "$PLATFORM_REALTIME_LOG" 2>&1 &
 PLATFORM_PID=$!
+
+# Display platform output to user in the background
+tail -f "$PLATFORM_REALTIME_LOG" &
+TAIL_PID=$!
+
 echo "  rcPlatform started (PID: $PLATFORM_PID)"
 
 # CRITICAL: Wait for AFECS container registration before starting rcGUI
@@ -614,8 +628,8 @@ echo ""
 echo "  Waiting for AFECS container to register..."
 echo "  (Platform is not ready for rcGUI until container registers)"
 
-# Determine platform log file location
-# Platform logs typically go to $CODA_DATA/<expid>/dlog/platformDlog
+# Determine traditional platform log file location (fallback)
+# Platform may also write to $CODA_DATA/<expid>/dlog/platformDlog
 PLATFORM_LOG=""
 if [[ -n "$CODA_DATA" && -n "$EXPID" ]]; then
     PLATFORM_LOG="${CODA_DATA}/${EXPID}/dlog/platformDlog"
@@ -630,46 +644,90 @@ MAX_WAIT=30  # Maximum 30 seconds
 WAIT_COUNT=0
 LAST_LOG_SIZE=0
 
+# Diagnostic: track what we're checking and what we find
+echo "  [Diagnostic] Monitoring for container registration in:"
+echo "    Primary: $PLATFORM_REALTIME_LOG"
+if [[ -n "$PLATFORM_LOG" ]]; then
+    echo "    Fallback: $PLATFORM_LOG"
+fi
+
 while [[ $WAIT_COUNT -lt $MAX_WAIT ]]; do
     # Verify platform is still running
     if ! kill -0 $PLATFORM_PID 2>/dev/null; then
         echo ""
         echo "  ERROR: rcPlatform process died (PID $PLATFORM_PID not found)"
         echo "  Cannot proceed to rcGUI startup"
+        # Kill the tail process
+        kill $TAIL_PID 2>/dev/null
         break
     fi
 
-    # Check platform log for AFECS container registration
-    if [[ -f "$PLATFORM_LOG" ]]; then
-        # Look for container registration messages:
+    # Check MULTIPLE sources for AFECS container registration
+    # This makes detection more robust and handles different platform configurations
+
+    # Source 1: Real-time log file (primary - platform's direct stdout)
+    if [[ -f "$PLATFORM_REALTIME_LOG" ]]; then
+        # Look for multiple indicators of container readiness (not just one brittle match):
         # - "Afecs-4 Container" (container type)
         # - "Name = <hostname>_admin" (admin agent registration)
-        # - "Connected to:" followed by platform details
+        # - "Connected to:" (connection confirmation)
+
+        FOUND_CONTAINER=$(grep -c "Afecs-4 Container" "$PLATFORM_REALTIME_LOG" 2>/dev/null || echo 0)
+        FOUND_ADMIN=$(grep -c "_admin" "$PLATFORM_REALTIME_LOG" 2>/dev/null || echo 0)
+        FOUND_CONNECTED=$(grep -c "Connected to:" "$PLATFORM_REALTIME_LOG" 2>/dev/null || echo 0)
+
+        # Container is ready if we see the container header AND admin registration
+        # The "Connected to:" is optional but adds confidence
+        if [[ $FOUND_CONTAINER -gt 0 && $FOUND_ADMIN -gt 0 ]]; then
+            AFECS_READY=true
+            echo ""
+            echo "  ✓ AFECS container registered — platform ready for rcGUI"
+
+            # Extract and show container info for confirmation
+            CONTAINER_NAME=$(grep "Name = .*_admin" "$PLATFORM_REALTIME_LOG" 2>/dev/null | tail -1 | sed 's/.*Name = //' | tr -d ' ')
+            if [[ -n "$CONTAINER_NAME" ]]; then
+                echo "    Container: $CONTAINER_NAME"
+            fi
+
+            # Show diagnostic info about what we found
+            echo "  [Diagnostic] Found: container=$FOUND_CONTAINER, admin=$FOUND_ADMIN, connected=$FOUND_CONNECTED"
+
+            # Kill the tail process before breaking
+            kill $TAIL_PID 2>/dev/null
+            break
+        fi
+    fi
+
+    # Source 2: Traditional platform log file (fallback)
+    # Check this in case platform writes to the default log location
+    if [[ -n "$PLATFORM_LOG" && -f "$PLATFORM_LOG" ]]; then
         if grep -q "Afecs-4 Container" "$PLATFORM_LOG" 2>/dev/null; then
-            # Found container registration - verify admin agent is there
             if grep -q "_admin" "$PLATFORM_LOG" 2>/dev/null; then
                 AFECS_READY=true
                 echo ""
-                echo "  ✓ AFECS container registered — platform ready for rcGUI"
+                echo "  ✓ AFECS container registered (detected in platform log)"
 
-                # Extract and show container info for confirmation
-                CONTAINER_HOST=$(grep "Name = .*_admin" "$PLATFORM_LOG" 2>/dev/null | tail -1 | sed 's/.*Name = //' | sed 's/_admin//')
-                if [[ -n "$CONTAINER_HOST" ]]; then
-                    echo "    Container: ${CONTAINER_HOST}_admin"
+                # Extract container name
+                CONTAINER_NAME=$(grep "Name = .*_admin" "$PLATFORM_LOG" 2>/dev/null | tail -1 | sed 's/.*Name = //' | tr -d ' ')
+                if [[ -n "$CONTAINER_NAME" ]]; then
+                    echo "    Container: $CONTAINER_NAME"
                 fi
 
+                # Kill the tail process before breaking
+                kill $TAIL_PID 2>/dev/null
                 break
             fi
         fi
+    fi
 
-        # Show log activity indicator (only when log grows)
-        CURRENT_SIZE=$(wc -c < "$PLATFORM_LOG" 2>/dev/null || echo 0)
+    # Show activity indicator (only when real-time log grows)
+    if [[ -f "$PLATFORM_REALTIME_LOG" ]]; then
+        CURRENT_SIZE=$(wc -c < "$PLATFORM_REALTIME_LOG" 2>/dev/null || echo 0)
         if [[ $CURRENT_SIZE -gt $LAST_LOG_SIZE ]]; then
             echo -n "."
             LAST_LOG_SIZE=$CURRENT_SIZE
         fi
     else
-        # Log file doesn't exist yet - platform still starting
         echo -n "."
     fi
 
@@ -679,25 +737,59 @@ done
 
 echo ""
 
+# Clean up tail process (in case it's still running)
+kill $TAIL_PID 2>/dev/null
+wait $TAIL_PID 2>/dev/null
+
 # Check if we succeeded or timed out
 if [[ "$AFECS_READY" != "true" ]]; then
     echo ""
     echo "  WARNING: AFECS container did not register within ${MAX_WAIT} seconds"
     echo "  Platform may not be fully ready for rcGUI"
+    echo ""
+
+    # Provide diagnostic information to help troubleshoot
+    echo "  [Diagnostic] What we checked:"
+    if [[ -f "$PLATFORM_REALTIME_LOG" ]]; then
+        FOUND_CONTAINER=$(grep -c "Afecs-4 Container" "$PLATFORM_REALTIME_LOG" 2>/dev/null || echo 0)
+        FOUND_ADMIN=$(grep -c "_admin" "$PLATFORM_REALTIME_LOG" 2>/dev/null || echo 0)
+        FOUND_CONNECTED=$(grep -c "Connected to:" "$PLATFORM_REALTIME_LOG" 2>/dev/null || echo 0)
+        LOG_SIZE=$(wc -c < "$PLATFORM_REALTIME_LOG" 2>/dev/null || echo 0)
+
+        echo "    Primary log: $PLATFORM_REALTIME_LOG ($LOG_SIZE bytes)"
+        echo "    Found 'Afecs-4 Container': $FOUND_CONTAINER"
+        echo "    Found '_admin': $FOUND_ADMIN"
+        echo "    Found 'Connected to:': $FOUND_CONNECTED"
+
+        if [[ $LOG_SIZE -eq 0 ]]; then
+            echo "    WARNING: Platform output file is empty - platform may not be running"
+        elif [[ $FOUND_CONTAINER -eq 0 ]]; then
+            echo "    Container header not found - platform may not have started AFECS container"
+        elif [[ $FOUND_ADMIN -eq 0 ]]; then
+            echo "    Admin agent registration not found - container may not have registered"
+        fi
+    else
+        echo "    Primary log: $PLATFORM_REALTIME_LOG (NOT FOUND)"
+    fi
 
     if [[ -n "$PLATFORM_LOG" ]]; then
-        echo "  Check platform log: $PLATFORM_LOG"
-    else
-        echo "  Could not determine platform log location"
-        echo "  Set CODA_DATA and EXPID environment variables for better diagnostics"
+        if [[ -f "$PLATFORM_LOG" ]]; then
+            LOG_SIZE=$(wc -c < "$PLATFORM_LOG" 2>/dev/null || echo 0)
+            echo "    Fallback log: $PLATFORM_LOG ($LOG_SIZE bytes)"
+        else
+            echo "    Fallback log: $PLATFORM_LOG (NOT FOUND)"
+        fi
     fi
+    echo ""
 
     # Verify platform is at least still running
     if kill -0 $PLATFORM_PID 2>/dev/null; then
         echo "  Platform process is still running (PID: $PLATFORM_PID)"
         echo "  Proceeding with rcGUI startup (may fail if platform not ready)"
+        echo "  You can check platform output in: $PLATFORM_REALTIME_LOG"
     else
         echo "  ERROR: Platform process died during startup"
+        echo "  Check platform output: $PLATFORM_REALTIME_LOG"
         echo "  ABORTING: Cannot start rcGUI without platform"
         exit 1
     fi
