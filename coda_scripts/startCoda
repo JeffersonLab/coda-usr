@@ -672,9 +672,10 @@ while [[ $WAIT_COUNT -lt $MAX_WAIT ]]; do
         # - "Name = <hostname>_admin" (admin agent registration)
         # - "Connected to:" (connection confirmation)
 
-        FOUND_CONTAINER=$(grep -c "Afecs-4 Container" "$PLATFORM_REALTIME_LOG" 2>/dev/null || echo 0)
-        FOUND_ADMIN=$(grep -c "_admin" "$PLATFORM_REALTIME_LOG" 2>/dev/null || echo 0)
-        FOUND_CONNECTED=$(grep -c "Connected to:" "$PLATFORM_REALTIME_LOG" 2>/dev/null || echo 0)
+        # Use xargs to strip whitespace/newlines, then ensure numeric with default
+        FOUND_CONTAINER=$(grep -c "Afecs-4 Container" "$PLATFORM_REALTIME_LOG" 2>/dev/null | xargs || echo 0)
+        FOUND_ADMIN=$(grep -c "_admin" "$PLATFORM_REALTIME_LOG" 2>/dev/null | xargs || echo 0)
+        FOUND_CONNECTED=$(grep -c "Connected to:" "$PLATFORM_REALTIME_LOG" 2>/dev/null | xargs || echo 0)
 
         # Ensure variables are numeric (prevent "syntax error in expression" messages)
         FOUND_CONTAINER=${FOUND_CONTAINER:-0}
@@ -727,7 +728,7 @@ while [[ $WAIT_COUNT -lt $MAX_WAIT ]]; do
 
     # Show activity indicator (only when real-time log grows)
     if [[ -f "$PLATFORM_REALTIME_LOG" ]]; then
-        CURRENT_SIZE=$(wc -c < "$PLATFORM_REALTIME_LOG" 2>/dev/null || echo 0)
+        CURRENT_SIZE=$(wc -c < "$PLATFORM_REALTIME_LOG" 2>/dev/null | xargs || echo 0)
         CURRENT_SIZE=${CURRENT_SIZE:-0}  # Ensure numeric value
         if [[ $CURRENT_SIZE -gt $LAST_LOG_SIZE ]]; then
             echo -n "."
@@ -757,10 +758,11 @@ if [[ "$AFECS_READY" != "true" ]]; then
     # Provide diagnostic information to help troubleshoot
     echo "  [Diagnostic] What we checked:"
     if [[ -f "$PLATFORM_REALTIME_LOG" ]]; then
-        FOUND_CONTAINER=$(grep -c "Afecs-4 Container" "$PLATFORM_REALTIME_LOG" 2>/dev/null || echo 0)
-        FOUND_ADMIN=$(grep -c "_admin" "$PLATFORM_REALTIME_LOG" 2>/dev/null || echo 0)
-        FOUND_CONNECTED=$(grep -c "Connected to:" "$PLATFORM_REALTIME_LOG" 2>/dev/null || echo 0)
-        LOG_SIZE=$(wc -c < "$PLATFORM_REALTIME_LOG" 2>/dev/null || echo 0)
+        # Use xargs to strip whitespace/newlines from grep/wc output
+        FOUND_CONTAINER=$(grep -c "Afecs-4 Container" "$PLATFORM_REALTIME_LOG" 2>/dev/null | xargs || echo 0)
+        FOUND_ADMIN=$(grep -c "_admin" "$PLATFORM_REALTIME_LOG" 2>/dev/null | xargs || echo 0)
+        FOUND_CONNECTED=$(grep -c "Connected to:" "$PLATFORM_REALTIME_LOG" 2>/dev/null | xargs || echo 0)
+        LOG_SIZE=$(wc -c < "$PLATFORM_REALTIME_LOG" 2>/dev/null | xargs || echo 0)
 
         # Ensure variables are numeric (prevent "syntax error in expression" messages)
         FOUND_CONTAINER=${FOUND_CONTAINER:-0}
@@ -786,7 +788,7 @@ if [[ "$AFECS_READY" != "true" ]]; then
 
     if [[ -n "$PLATFORM_LOG" ]]; then
         if [[ -f "$PLATFORM_LOG" ]]; then
-            LOG_SIZE=$(wc -c < "$PLATFORM_LOG" 2>/dev/null || echo 0)
+            LOG_SIZE=$(wc -c < "$PLATFORM_LOG" 2>/dev/null | xargs || echo 0)
             LOG_SIZE=${LOG_SIZE:-0}  # Ensure numeric value
             echo "    Fallback log: $PLATFORM_LOG ($LOG_SIZE bytes)"
         else
