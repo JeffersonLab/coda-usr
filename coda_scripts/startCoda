@@ -409,6 +409,8 @@ launch_component() {
     if [[ "$comp_type" == "ROC" && -n "$CONFIG_FLAG" ]]; then
         # Config mode: Run fadc250peds to generate pedestals for config generation
         echo "  [Config mode] Running pedestal measurement for ROC on $hostname"
+        echo "  NOTE: FADC250_PARAMS warnings from fadc250peds are expected and harmless"
+        echo "        (fadc250peds auto-detects FADCs even without a config file)"
         xterm_cmd="remote_vme $hostname nobody \"cd \\\$CODA/linuxvme/fadc-peds && ./fadc250peds \\\$CODA_CONFIG/${hostname}.peds\" 2>&1 | tee coda_tmp_log/${hostname}_${comp_name}_lastsession.log"
     else
         # Normal mode: Use standard start script for all components (including ROC)
@@ -513,6 +515,9 @@ if [[ -n "$CONFIG_FLAG" && ${#ROC_HOSTNAMES[@]} -gt 0 ]]; then
     echo "************************************************************"
     echo "Generating configuration files for ROC hosts"
     echo "************************************************************"
+    echo "NOTE: If you saw FADC250_PARAMS or config file warnings above,"
+    echo "      these are expected - fadc250peds auto-detects FADCs successfully"
+    echo ""
 
     # Determine base.cnf location
     BASE_CNF="${CODA_SCRIPTS}/../config/base.cnf"
