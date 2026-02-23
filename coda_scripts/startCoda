@@ -676,6 +676,11 @@ while [[ $WAIT_COUNT -lt $MAX_WAIT ]]; do
         FOUND_ADMIN=$(grep -c "_admin" "$PLATFORM_REALTIME_LOG" 2>/dev/null || echo 0)
         FOUND_CONNECTED=$(grep -c "Connected to:" "$PLATFORM_REALTIME_LOG" 2>/dev/null || echo 0)
 
+        # Ensure variables are numeric (prevent "syntax error in expression" messages)
+        FOUND_CONTAINER=${FOUND_CONTAINER:-0}
+        FOUND_ADMIN=${FOUND_ADMIN:-0}
+        FOUND_CONNECTED=${FOUND_CONNECTED:-0}
+
         # Container is ready if we see the container header AND admin registration
         # The "Connected to:" is optional but adds confidence
         if [[ $FOUND_CONTAINER -gt 0 && $FOUND_ADMIN -gt 0 ]]; then
@@ -723,6 +728,7 @@ while [[ $WAIT_COUNT -lt $MAX_WAIT ]]; do
     # Show activity indicator (only when real-time log grows)
     if [[ -f "$PLATFORM_REALTIME_LOG" ]]; then
         CURRENT_SIZE=$(wc -c < "$PLATFORM_REALTIME_LOG" 2>/dev/null || echo 0)
+        CURRENT_SIZE=${CURRENT_SIZE:-0}  # Ensure numeric value
         if [[ $CURRENT_SIZE -gt $LAST_LOG_SIZE ]]; then
             echo -n "."
             LAST_LOG_SIZE=$CURRENT_SIZE
@@ -756,6 +762,12 @@ if [[ "$AFECS_READY" != "true" ]]; then
         FOUND_CONNECTED=$(grep -c "Connected to:" "$PLATFORM_REALTIME_LOG" 2>/dev/null || echo 0)
         LOG_SIZE=$(wc -c < "$PLATFORM_REALTIME_LOG" 2>/dev/null || echo 0)
 
+        # Ensure variables are numeric (prevent "syntax error in expression" messages)
+        FOUND_CONTAINER=${FOUND_CONTAINER:-0}
+        FOUND_ADMIN=${FOUND_ADMIN:-0}
+        FOUND_CONNECTED=${FOUND_CONNECTED:-0}
+        LOG_SIZE=${LOG_SIZE:-0}
+
         echo "    Primary log: $PLATFORM_REALTIME_LOG ($LOG_SIZE bytes)"
         echo "    Found 'Afecs-4 Container': $FOUND_CONTAINER"
         echo "    Found '_admin': $FOUND_ADMIN"
@@ -775,6 +787,7 @@ if [[ "$AFECS_READY" != "true" ]]; then
     if [[ -n "$PLATFORM_LOG" ]]; then
         if [[ -f "$PLATFORM_LOG" ]]; then
             LOG_SIZE=$(wc -c < "$PLATFORM_LOG" 2>/dev/null || echo 0)
+            LOG_SIZE=${LOG_SIZE:-0}  # Ensure numeric value
             echo "    Fallback log: $PLATFORM_LOG ($LOG_SIZE bytes)"
         else
             echo "    Fallback log: $PLATFORM_LOG (NOT FOUND)"
