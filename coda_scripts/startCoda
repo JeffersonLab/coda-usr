@@ -465,6 +465,13 @@ launch_component() {
         xterm_cmd="remote_vme $hostname nobody ${CODA_SCRIPTS}/start${comp_type}.sh $comp_name $comp_options 2>&1 | tee coda_tmp_log/${hostname}_${comp_name}_lastsession.log"
     fi
 
+    # Debug: Show the actual command being executed
+    if [[ "$comp_type" == "ROC" && -n "$CONFIG_FLAG" ]]; then
+        echo "  [Debug] xterm_cmd for $comp_name:"
+        echo "  $xterm_cmd"
+        echo ""
+    fi
+
     # Launch the xterm
     ${XTERM_EXE} -geometry $XTDIM+$xpos+$ypos -T "$xterm_title" -bg "$xterm_color" \
         -e /bin/bash -i -c "trap '' SIGINT; $xterm_cmd; echo; echo '--- Press Enter to return to shell ---'; read; exec bash" &
