@@ -483,6 +483,89 @@ EOF
     fi
 }
 
+# =============================================================================
+# VALIDATION: Check for multiple components of same type on same host
+# =============================================================================
+# Component startup scripts assume only ONE instance of each component type
+# per host. Multiple instances cause process collisions and infinite restart loops.
+echo ""
+echo "************************************************************"
+echo "Validating component configuration..."
+echo "************************************************************"
+
+validation_errors=0
+declare -a seen_entries=()
+
+while IFS= read -r line || [[ -n "$line" ]]; do
+    # Remove leading/trailing whitespace
+    line=$(echo "$line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+
+    # Skip blank lines and comments
+    [[ -z "$line" || "$line" =~ ^# ]] && continue
+
+    # Parse the line
+    read -r hostname comp_type comp_name rest <<< "$line"
+
+    # Skip if not enough fields
+    [[ -z "$hostname" || -z "$comp_type" || -z "$comp_name" ]] && continue
+
+    # Validate all component types - each host can only run ONE component of each type
+    # Valid component types: ROC, FPGA, TS, PEB, ER, SEB, DC, PAGG, EMU
+    case "$comp_type" in
+        ROC|FPGA|TS|PEB|ER|SEB|DC|PAGG|EMU)
+            map_key="${hostname}|${comp_type}"
+
+            # Check if this host+type combination already exists
+            found_existing=""
+            for entry in "${seen_entries[@]}"; do
+                # Entry format is "hostname|type|component"
+                entry_key="${entry%|*}"  # Remove everything after last |, giving "hostname|type"
+                entry_comp="${entry##*|}"  # Get everything after last |, giving component name
+                if [[ "$entry_key" == "$map_key" ]]; then
+                    found_existing="$entry_comp"
+                    break
+                fi
+            done
+
+            if [[ -n "$found_existing" ]]; then
+                # Duplicate detected
+                echo "ERROR: Multiple $comp_type components on host '$hostname'"
+                echo "       Existing: $found_existing"
+                echo "       Duplicate: $comp_name"
+                echo ""
+                echo "REASON: Only ONE $comp_type component per host is allowed."
+                echo "        Multiple instances cause process collisions on the same host."
+                echo ""
+                validation_errors=$((validation_errors + 1))
+            else
+                # Add to seen list: "hostname|type|component"
+                seen_entries+=("${map_key}|${comp_name}")
+            fi
+            ;;
+        *)
+            # Unknown component type - warn but don't fail
+            echo "WARNING: Unknown component type '$comp_type' for $comp_name on $hostname"
+            echo "         Proceeding anyway..."
+            ;;
+    esac
+done < "$RESOLVED_FILE"
+
+# Exit if validation errors found
+if [[ $validation_errors -gt 0 ]]; then
+    echo "************************************************************"
+    echo "VALIDATION FAILED: $validation_errors error(s) found"
+    echo "************************************************************"
+    echo ""
+    echo "Fix the component configuration file and try again."
+    echo "Each host can only have ONE component of each type."
+    echo "Example: A host cannot run both FPGA1 and FPGA2 simultaneously."
+    echo ""
+    exit 1
+fi
+
+echo "Validation passed: No duplicate components of same type on any host"
+echo ""
+
 # Array to track ROC hostnames for config file generation
 declare -a ROC_HOSTNAMES=()
 
