@@ -505,7 +505,10 @@ static void *_vtp_stats_sender_main(void *arg)
     uint64_t timestamp_ns = fc_ext * 65535ULL;
 
     /* Prepare sync packet buffer */
-    int pkt_len = vtpGetSyncPktLen();
+    /* WORKAROUND: vtpGetSyncPktLen() doesn't exist (same vtpGet*() bug)
+     * Use documented default: 28 bytes (see line 400)
+     */
+    int pkt_len = 28;
     char buf[256];  /* Large enough for any reasonable sync packet */
     if (pkt_len > (int)sizeof(buf)) pkt_len = sizeof(buf);
     setSyncData(buf, 1, src_id, fc_ext, evt_rate, timestamp_ns);
@@ -855,7 +858,11 @@ rocPrestart()
    * payloads enabled (safe default that prevents undefined behavior).
    * ======================================================================== */
   {
-    const int *payload_en = vtpGetPayloadEnableArray();
+    /* WORKAROUND: vtpGetPayloadEnableArray() doesn't exist (same vtpGet*() bug)
+     * Return NULL to trigger safe default: no payloads enabled (ppmask=0)
+     * User should add VTP_PAYLOAD_EN to config file to enable specific payloads
+     */
+    const int *payload_en = NULL;
     int payload_num;
     int active_count = 0;
     int mask_result;
@@ -864,8 +871,9 @@ rocPrestart()
     ppmask = 0;
 
     if (!payload_en) {
-      printf("ERROR: Unable to get payload enable array from config\n");
-      printf("ERROR: Falling back to no payloads enabled (ppmask=0)\n");
+      printf("WARNING: vtpGetPayloadEnableArray() not available (libvtp limitation)\n");
+      printf("WARNING: Falling back to no payloads enabled (ppmask=0)\n");
+      printf("INFO: To configure payloads, add VTP_PAYLOAD_EN to config file\n");
     } else {
       printf("INFO: Configuring VTP payload ports from VTP_PAYLOAD_EN...\n");
 
@@ -1072,22 +1080,26 @@ rocGo()
 
   /* ADDED: launch 1 Hz UDP status sender at GO begin */
   /* Get config values, but allow env var override for backward compatibility */
+  /* WORKAROUND: vtpGetStatsHost/Port/Inst() don't exist in libvtp (same vtpGet*() bug)
+   * Use documented defaults instead (see lines 397-399)
+   */
   const char *host = getenv("VTP_STATS_HOST");
   char *port_env = getenv("VTP_STATS_PORT");
   uint16_t port;
   int inst;
 
-  if (!host || !*host) host = vtpGetStatsHost();
+  /* Default: indra-s2 IP for forwarding sync packets */
+  if (!host || !*host) host = "129.57.29.231";
 
   if (port_env && *port_env) {
     long pv = strtol(port_env, NULL, 10);
     if (pv > 0 && pv < 65536) port = (uint16_t)pv;
-    else port = (uint16_t)vtpGetStatsPort();
+    else port = 19531;  /* Default stats port */
   } else {
-    port = (uint16_t)vtpGetStatsPort();
+    port = 19531;  /* Default stats port */
   }
 
-  inst = vtpGetStatsInst();
+  inst = 0;  /* Default stats instance */
 
   (void)vtp_stats_sender_launch(host, port, inst);
 
