@@ -380,14 +380,5 @@ When modifying this repository:
 
 ---
 
-## Version History
-
-- **Feb 2026** - VTP ROL undefined symbol fixes, firmware config-driven
-- **Feb 2026** - Startup sequence fixes (AFECS container detection)
-- **Feb 2026** - File-based component launching with auto config generation
-- **Earlier** - Initial CODA user environment setup
-
----
-
 **Repository:** https://github.com/JeffersonLab/coda-usr
-**Last Updated:** February 2026
+**Author:** Vardan Gyurjyan
