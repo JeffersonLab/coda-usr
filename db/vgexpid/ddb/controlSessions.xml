@@ -6,7 +6,7 @@
    </session>
    <session>
       <name>vgtest</name>
-      <config>HallBSRO</config>
-      <runnumber>442</runnumber>
+      <config>hallb-sro</config>
+      <runnumber>443</runnumber>
    </session>
 </control>
