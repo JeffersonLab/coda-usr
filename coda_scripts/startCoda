@@ -415,8 +415,8 @@ launch_component() {
 
         # Build a chained command for the remote host
         # All commands in one line, separated by semicolons
-        # Using single quotes to prevent local expansion, with escapes for variables that should expand remotely
-        xterm_cmd="remote_vme $hostname nobody \""
+        # NOTE: Must escape double quotes with backslash since this will be embedded in bash -c "..."
+        xterm_cmd="remote_vme $hostname nobody \\\""
         xterm_cmd+="echo '========================================'; "
         xterm_cmd+="echo 'STAGE 1: Running pedestal measurement...'; "
         xterm_cmd+="echo '========================================'; "
@@ -458,7 +458,7 @@ launch_component() {
         xterm_cmd+="echo '========================================'; "
         xterm_cmd+="cd \\\$CODA; "
         xterm_cmd+="${CODA_SCRIPTS}/startROC.sh $comp_name $comp_options"
-        xterm_cmd+="\" 2>&1 | tee coda_tmp_log/${hostname}_${comp_name}_lastsession.log"
+        xterm_cmd+="\\\" 2>&1 | tee coda_tmp_log/${hostname}_${comp_name}_lastsession.log"
     else
         # Normal mode: Use standard start script for all components (including ROC)
         # This preserves original startCoda behavior when --config is NOT specified
