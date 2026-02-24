@@ -413,9 +413,8 @@ launch_component() {
         echo "  NOTE: FADC250_PARAMS warnings from fadc250peds are expected and harmless"
         echo "        (fadc250peds auto-detects FADCs even without a config file)"
 
-        # Write startup script to a shared location (assuming NFS-mounted CODA_SCRIPTS)
-        # This allows the remote host to access it directly without stdin redirection
-        SCRIPT_FILE="${CODA_SCRIPTS}/._${hostname}_${comp_name}_startup.sh"
+        # Write a script file to avoid complex quoting issues
+        SCRIPT_FILE="coda_tmp_log/${hostname}_${comp_name}_startup.sh"
         cat > "$SCRIPT_FILE" <<EOF
 #!/bin/bash
 echo "========================================"
@@ -463,9 +462,10 @@ EOF
         chmod +x "$SCRIPT_FILE"
 
         # Execute the script directly from shared filesystem (no stdin redirection)
-        # This assumes CODA_SCRIPTS is on an NFS mount accessible to the remote host
+        # Use CODA_SCRIPTS-relative path so remote host can access the script file
         # Stdin remains connected to the terminal for coda_roc to use
-        xterm_cmd="remote_vme $hostname nobody $SCRIPT_FILE 2>&1 | tee coda_tmp_log/${hostname}_${comp_name}_lastsession.log"
+        REMOTE_SCRIPT_PATH="\${CODA_SCRIPTS}/coda_tmp_log/${hostname}_${comp_name}_startup.sh"
+        xterm_cmd="remote_vme $hostname nobody $REMOTE_SCRIPT_PATH 2>&1 | tee coda_tmp_log/${hostname}_${comp_name}_lastsession.log"
     else
         # Normal mode: Use standard start script for all components (including ROC)
         # This preserves original startCoda behavior when --config is NOT specified
