@@ -495,8 +495,9 @@ WRAPPER_EOF
     # Launch the xterm
     # Use single quotes for the bash -c command to avoid quote expansion issues
     # The xterm_cmd variable is substituted outside the single quotes
+    # Close automatically on success (status 0), wait on failure for debugging
     ${XTERM_EXE} -geometry $XTDIM+$xpos+$ypos -T "$xterm_title" -bg "$xterm_color" \
-        -e /bin/bash -i -c 'trap "" SIGINT; '"$xterm_cmd"'; echo; echo "--- Press Enter to return to shell ---"; read; exec bash' &
+        -e /bin/bash -i -c 'trap "" SIGINT; '"$xterm_cmd"'; STATUS=$?; if [ $STATUS -ne 0 ]; then echo; echo "--- Command failed (status $STATUS) - Press Enter to return to shell ---"; read; exec bash; fi' &
 
     # Update position for next window
     ypos=$((ypos + YINCR))
