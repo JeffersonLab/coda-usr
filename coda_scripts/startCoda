@@ -138,8 +138,9 @@ echo "INFO: Using component table: $CODA_COMPONENT_TABLE"
 
 # Create log directory for component session logs
 # This prevents "No such file or directory" errors from tee
-mkdir -p coda_tmp_log
+mkdir -p coda_tmp_log/scripts
 echo "INFO: Log directory: $(pwd)/coda_tmp_log"
+echo "INFO: Script directory: $(pwd)/coda_tmp_log/scripts"
 
 echo ""
 echo "************************************************************"
@@ -414,7 +415,7 @@ launch_component() {
         echo "        (fadc250peds auto-detects FADCs even without a config file)"
 
         # Write a script file to avoid complex quoting issues
-        SCRIPT_FILE="coda_tmp_log/${hostname}_${comp_name}_startup.sh"
+        SCRIPT_FILE="coda_tmp_log/scripts/${hostname}_${comp_name}_startup.sh"
         cat > "$SCRIPT_FILE" <<EOF
 #!/bin/bash
 echo "========================================"
@@ -464,7 +465,7 @@ EOF
         # Execute the script directly from shared filesystem (no stdin redirection)
         # Use CODA_SCRIPTS-relative path so remote host can access the script file
         # Stdin remains connected to the terminal for coda_roc to use
-        REMOTE_SCRIPT_PATH="\${CODA_SCRIPTS}/coda_tmp_log/${hostname}_${comp_name}_startup.sh"
+        REMOTE_SCRIPT_PATH="\${CODA_SCRIPTS}/coda_tmp_log/scripts/${hostname}_${comp_name}_startup.sh"
         xterm_cmd="remote_vme $hostname nobody $REMOTE_SCRIPT_PATH 2>&1 | tee coda_tmp_log/${hostname}_${comp_name}_lastsession.log"
     else
         # Normal mode: Use standard start script for all components (including ROC)
