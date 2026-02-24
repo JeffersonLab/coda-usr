@@ -457,7 +457,7 @@ echo "========================================"
 echo "STAGE 3: Starting coda_roc..."
 echo "========================================"
 cd \$CODA
-exec \${CODA_SCRIPTS}/startROC.sh $comp_name $comp_options
+exec \${CODA_SCRIPTS}/startROC.sh $comp_name $comp_options </dev/tty
 EOF
         chmod +x "$SCRIPT_FILE"
 
