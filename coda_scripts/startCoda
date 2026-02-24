@@ -457,11 +457,15 @@ echo "========================================"
 echo "STAGE 3: Starting coda_roc..."
 echo "========================================"
 cd \$CODA
-exec \${CODA_SCRIPTS}/startROC.sh $comp_name $comp_options </dev/tty
+# Redirect stdin from /dev/null and use terminal for output
+# coda_roc will run without interactive input but stay alive
+exec \${CODA_SCRIPTS}/startROC.sh $comp_name $comp_options </dev/null
 EOF
         chmod +x "$SCRIPT_FILE"
 
         # Simple command: run the script via remote_vme
+        # NOTE: Use bash -s which pipes the script via stdin - this is required since
+        # the script file is local and doesn't exist on the remote host
         xterm_cmd="remote_vme $hostname nobody bash -s < $SCRIPT_FILE 2>&1 | tee coda_tmp_log/${hostname}_${comp_name}_lastsession.log"
     else
         # Normal mode: Use standard start script for all components (including ROC)
