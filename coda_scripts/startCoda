@@ -422,6 +422,12 @@ launch_component() {
         WRAPPER_SCRIPT="${CODA_SCRIPTS}/coda_tmp_log/scripts/${hostname}_${comp_name}_wrapper.sh"
         cat > "$WRAPPER_SCRIPT" <<'WRAPPER_EOF'
 #!/bin/bash
+
+# Trap signals to exit cleanly and prevent remote_vme from restarting
+# When coda_roc is killed (by kcoda or Ctrl-C), exit with status 0
+# so remote_vme sees it as successful completion, not a failure
+trap 'echo ""; echo "Caught signal - exiting cleanly"; exit 0' SIGINT SIGTERM SIGHUP
+
 # PHASE 1: Pedestal and config preparation
 echo "========================================"
 echo "STAGE 1: Running pedestal measurement..."
@@ -462,7 +468,13 @@ echo "========================================"
 echo "STAGE 3: Starting coda_roc..."
 echo "========================================"
 cd $CODA
-exec ${CODA_SCRIPTS}/startROC.sh COMPNAME_PLACEHOLDER COMPOPTIONS_PLACEHOLDER
+${CODA_SCRIPTS}/startROC.sh COMPNAME_PLACEHOLDER COMPOPTIONS_PLACEHOLDER
+ROC_EXIT=$?
+# Always exit with status 0 to prevent remote_vme from restarting
+# Whether coda_roc was killed by user (kcoda/Ctrl-C) or crashed, we don't want to restart
+echo ""
+echo "coda_roc exited with status: $ROC_EXIT"
+exit 0
 WRAPPER_EOF
         # Replace placeholders
         sed -i.bak "s/HOSTNAME_PLACEHOLDER/${hostname}/g" "$WRAPPER_SCRIPT"
