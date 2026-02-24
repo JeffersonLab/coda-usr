@@ -138,9 +138,9 @@ echo "INFO: Using component table: $CODA_COMPONENT_TABLE"
 
 # Create log directory for component session logs
 # This prevents "No such file or directory" errors from tee
-mkdir -p coda_tmp_log/scripts
-echo "INFO: Log directory: $(pwd)/coda_tmp_log"
-echo "INFO: Script directory: $(pwd)/coda_tmp_log/scripts"
+mkdir -p ${CODA_SCRIPTS}/coda_tmp_log/scripts
+echo "INFO: Log directory: ${CODA_SCRIPTS}/coda_tmp_log"
+echo "INFO: Script directory: ${CODA_SCRIPTS}/coda_tmp_log/scripts"
 
 echo ""
 echo "************************************************************"
@@ -473,11 +473,11 @@ WRAPPER_EOF
 
         # Execute wrapper directly (not via bash -s) so phase 2 gets terminal stdin
         # Use local ${CODA_SCRIPTS} value - should be same path on NFS mount
-        xterm_cmd="remote_vme $hostname nobody ${CODA_SCRIPTS}/coda_tmp_log/scripts/${hostname}_${comp_name}_wrapper.sh 2>&1 | tee coda_tmp_log/${hostname}_${comp_name}_lastsession.log"
+        xterm_cmd="remote_vme $hostname nobody ${CODA_SCRIPTS}/coda_tmp_log/scripts/${hostname}_${comp_name}_wrapper.sh 2>&1 | tee ${CODA_SCRIPTS}/coda_tmp_log/${hostname}_${comp_name}_lastsession.log"
     else
         # Normal mode: Use standard start script for all components (including ROC)
         # This preserves original startCoda behavior when --config is NOT specified
-        xterm_cmd="remote_vme $hostname nobody ${CODA_SCRIPTS}/start${comp_type}.sh $comp_name $comp_options 2>&1 | tee coda_tmp_log/${hostname}_${comp_name}_lastsession.log"
+        xterm_cmd="remote_vme $hostname nobody ${CODA_SCRIPTS}/start${comp_type}.sh $comp_name $comp_options 2>&1 | tee ${CODA_SCRIPTS}/coda_tmp_log/${hostname}_${comp_name}_lastsession.log"
     fi
 
     # Launch the xterm
@@ -760,7 +760,7 @@ echo "Starting rcPlatform..."
 # Create a real-time log file to capture platform stdout/stderr
 # This allows us to monitor platform output immediately without relying on
 # buffered log files that may not exist or may be written asynchronously
-PLATFORM_REALTIME_LOG="coda_tmp_log/platform_output_$$.log"
+PLATFORM_REALTIME_LOG="${CODA_SCRIPTS}/coda_tmp_log/platform_output_$$.log"
 touch "$PLATFORM_REALTIME_LOG"
 
 # Start platform with output redirected to our monitored file
