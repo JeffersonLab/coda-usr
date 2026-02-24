@@ -457,9 +457,13 @@ echo "========================================"
 echo "STAGE 3: Starting coda_roc..."
 echo "========================================"
 cd \$CODA
-# Redirect stdin from /dev/null and use terminal for output
-# coda_roc will run without interactive input but stay alive
-exec \${CODA_SCRIPTS}/startROC.sh $comp_name $comp_options </dev/null
+# Run startROC.sh in background with stdin from /dev/zero (prevents EOF)
+# Then wait for it to complete - this keeps the script (and SSH session) alive
+\${CODA_SCRIPTS}/startROC.sh $comp_name $comp_options </dev/zero &
+ROC_PID=\$!
+echo "coda_roc started with PID: \$ROC_PID"
+wait \$ROC_PID
+echo "coda_roc exited"
 EOF
         chmod +x "$SCRIPT_FILE"
 
