@@ -418,8 +418,8 @@ launch_component() {
         # Phase 1: Run pedestal + wait for config (script via bash -s)
         # Phase 2: Run startROC.sh normally (preserves terminal stdin for coda_roc)
 
-        # Create wrapper script that runs both phases sequentially
-        WRAPPER_SCRIPT="coda_tmp_log/scripts/${hostname}_${comp_name}_wrapper.sh"
+        # Create wrapper script using absolute path so remote host can find it
+        WRAPPER_SCRIPT="${CODA_SCRIPTS}/coda_tmp_log/scripts/${hostname}_${comp_name}_wrapper.sh"
         cat > "$WRAPPER_SCRIPT" <<'WRAPPER_EOF'
 #!/bin/bash
 # PHASE 1: Pedestal and config preparation
