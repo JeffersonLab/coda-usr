@@ -1,0 +1,31 @@
+<rdf:RDF
+xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+xmlns:cool="http://AFECSHOMEDB/schema/cool#"
+>
+
+<rdf:Description rdf:about="http://COOLHOME/Control/clas12-sro-ecal1_ecal2/Components/adcecal2vtp#adcecal2vtp">
+
+   <cool:hasName>adcecal2vtp</cool:hasName>
+   <cool:hasID>11</cool:hasID>
+   <cool:hasType>FPGA</cool:hasType>
+   <cool:hasCode>{$env(CODA)/src/vtp/vtp_streaming/rol/vtp_stream3_1udp_vg.so undefined} </cool:hasCode>
+   <cool:hasPriority>1060</cool:hasPriority>
+   <cool:isCodaComponent>true</cool:isCodaComponent>
+
+   <cool:include rdf:resource="http://COOLHOME/Control/clas12-sro-ecal1_ecal2/Options/adcecal2vtp_option.rdf"/>
+   <cool:hasOption rdf:resource="http://COOLHOME/Control/clas12-sro-ecal1_ecal2/Options/adcecal2vtp_option#adcecal2vtp_option"/>
+
+
+
+   <cool:include rdf:resource="http://COOLHOME/Control/clas12-sro-ecal1_ecal2/Links/adcecal2vtp_LB.rdf"/>
+   <cool:usesLink rdf:resource="http://COOLHOME/Control/clas12-sro-ecal1_ecal2/Links/adcecal2vtp_LB#adcecal2vtp_LB"/>
+
+
+
+   <cool:XCo>66.0</cool:XCo>
+   <cool:YCo>435.0</cool:YCo>
+   <cool:WCo>80.0</cool:WCo>
+   <cool:HCo>80.0</cool:HCo>
+
+</rdf:Description>
+</rdf:RDF>

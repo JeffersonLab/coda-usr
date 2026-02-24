@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<component name="adcecal2vtp">
+
+   <transports>
+
+     <server name="LB_transport" class="File" />
+
+   </transports>
+
+   <modules>
+
+     <FPGATriggerModule class="RocSimulation" id="11" timeStats="off" > 
+
+         <outchannel id="11" name="LB" transp="LB_transport" fileName="undefined" split="20000000000" />
+
+     </FPGATriggerModule>
+
+   </modules>
+
+</component>
+

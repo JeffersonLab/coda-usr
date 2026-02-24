@@ -1,0 +1,27 @@
+<rdf:RDF
+xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+xmlns:cool="http://AFECSHOMEDB/schema/cool#"
+>
+
+<rdf:Description rdf:about="http://COOLHOME/Control/clas12-sro-ecal1_ecal2/Components/adcecal1#adcecal1">
+
+   <cool:hasName>adcecal1</cool:hasName>
+   <cool:hasID>9</cool:hasID>
+   <cool:hasType>ROC</cool:hasType>
+   <cool:hasCode>{$env(CODA)/linuxvme/rol/fadc_master_stream_vg.so undefined} </cool:hasCode>
+   <cool:hasPriority>1010</cool:hasPriority>
+   <cool:isCodaComponent>true</cool:isCodaComponent>
+   <cool:hasUserConfig>/home/ejfat/coda-exp-vg/config/fadc250/vgexpid_ecal1_ecal2.cnf</cool:hasUserConfig>
+
+   <cool:include rdf:resource="http://COOLHOME/Control/clas12-sro-ecal1_ecal2/Options/adcecal1_option.rdf"/>
+   <cool:hasOption rdf:resource="http://COOLHOME/Control/clas12-sro-ecal1_ecal2/Options/adcecal1_option#adcecal1_option"/>
+
+
+
+   <cool:XCo>67.0</cool:XCo>
+   <cool:YCo>56.0</cool:YCo>
+   <cool:WCo>80.0</cool:WCo>
+   <cool:HCo>80.0</cool:HCo>
+
+</rdf:Description>
+</rdf:RDF>

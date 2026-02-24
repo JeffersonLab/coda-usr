@@ -9,8 +9,16 @@ xmlns:cool="http://AFECSHOMEDB/schema/cool#"
    <cool:hasComponent rdf:resource="http://COOLHOME/Control/hallb-sro/Components/VT1#VT1"/>
 
 
+   <cool:include rdf:resource="http://COOLHOME/Control/hallb-sro/Components/VT2.rdf"/>
+   <cool:hasComponent rdf:resource="http://COOLHOME/Control/hallb-sro/Components/VT2#VT2"/>
+
+
    <cool:include rdf:resource="http://COOLHOME/Control/hallb-sro/Components/LB.rdf"/>
    <cool:hasComponent rdf:resource="http://COOLHOME/Control/hallb-sro/Components/LB#LB"/>
+
+
+   <cool:include rdf:resource="http://COOLHOME/Control/hallb-sro/Components/VM2.rdf"/>
+   <cool:hasComponent rdf:resource="http://COOLHOME/Control/hallb-sro/Components/VM2#VM2"/>
 
 
    <cool:include rdf:resource="http://COOLHOME/Control/hallb-sro/Components/VM1.rdf"/>

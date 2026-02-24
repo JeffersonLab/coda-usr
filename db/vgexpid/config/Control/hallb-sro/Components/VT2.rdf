@@ -1,0 +1,31 @@
+<rdf:RDF
+xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+xmlns:cool="http://AFECSHOMEDB/schema/cool#"
+>
+
+<rdf:Description rdf:about="http://COOLHOME/Control/hallb-sro/Components/VT2#VT2">
+
+   <cool:hasName>VT2</cool:hasName>
+   <cool:hasID>9</cool:hasID>
+   <cool:hasType>FPGA</cool:hasType>
+   <cool:hasCode>{$env(CODA_ROL)/vtp_rol/vtp_sro_1udp.so undefined} </cool:hasCode>
+   <cool:hasPriority>1060</cool:hasPriority>
+   <cool:isCodaComponent>true</cool:isCodaComponent>
+
+   <cool:include rdf:resource="http://COOLHOME/Control/hallb-sro/Options/VT2_option.rdf"/>
+   <cool:hasOption rdf:resource="http://COOLHOME/Control/hallb-sro/Options/VT2_option#VT2_option"/>
+
+
+
+   <cool:include rdf:resource="http://COOLHOME/Control/hallb-sro/Links/VT2_LB.rdf"/>
+   <cool:usesLink rdf:resource="http://COOLHOME/Control/hallb-sro/Links/VT2_LB#VT2_LB"/>
+
+
+
+   <cool:XCo>80.0</cool:XCo>
+   <cool:YCo>348.0</cool:YCo>
+   <cool:WCo>80.0</cool:WCo>
+   <cool:HCo>80.0</cool:HCo>
+
+</rdf:Description>
+</rdf:RDF>

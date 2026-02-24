@@ -11,6 +11,8 @@ xmlns:cool="http://AFECSHOMEDB/schema/cool#"
    <cool:hasCode>{undefined undefined} </cool:hasCode>
    <cool:hasPriority>1510</cool:hasPriority>
    <cool:isCodaComponent>true</cool:isCodaComponent>
+   <cool:linkedTo>VT2</cool:linkedTo>
+   <cool:linkedToType>FPGA</cool:linkedToType>
    <cool:linkedTo>VT1</cool:linkedTo>
    <cool:linkedToType>FPGA</cool:linkedToType>
 
@@ -19,13 +21,18 @@ xmlns:cool="http://AFECSHOMEDB/schema/cool#"
 
 
 
+   <cool:include rdf:resource="http://COOLHOME/Control/hallb-sro/Links/VT2_LB.rdf"/>
+   <cool:usesLink rdf:resource="http://COOLHOME/Control/hallb-sro/Links/VT2_LB#VT2_LB"/>
+
+
+
    <cool:include rdf:resource="http://COOLHOME/Control/hallb-sro/Links/VT1_LB.rdf"/>
    <cool:usesLink rdf:resource="http://COOLHOME/Control/hallb-sro/Links/VT1_LB#VT1_LB"/>
 
 
 
-   <cool:XCo>288.0</cool:XCo>
-   <cool:YCo>255.0</cool:YCo>
+   <cool:XCo>271.0</cool:XCo>
+   <cool:YCo>287.0</cool:YCo>
    <cool:WCo>80.0</cool:WCo>
    <cool:HCo>80.0</cool:HCo>
 

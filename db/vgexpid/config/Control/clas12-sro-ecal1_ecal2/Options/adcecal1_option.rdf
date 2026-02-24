@@ -1,0 +1,12 @@
+<rdf:RDF
+xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+xmlns:cool="http://AFECSHOMEDB/schema/cool#"
+>
+
+<rdf:Description rdf:about="http://COOLHOME/Control/clas12-sro-ecal1_ecal2/Options/adcecal1_option#adcecal1_option">
+
+   <cool:hasName>adcecal1_option</cool:hasName>
+   <cool:hasConfigFile>adcecal1.dat</cool:hasConfigFile>
+
+</rdf:Description>
+</rdf:RDF>

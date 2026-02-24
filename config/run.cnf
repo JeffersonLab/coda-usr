@@ -1,2 +1,4 @@
-test2 ROC VM1 -v
-test2vtp FPGA VT1 -v
+adcecal1 ROC VM1 -v
+adcecal1vtp FPGA VT1 -v
+adcecal2 ROC VM2 -v
+adcecal2vtp FPGA VT2 -v

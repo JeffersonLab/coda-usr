@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<component name="LB">
+
+   <transports>
+
+     <server name="LB_transport" class="File" />
+
+   </transports>
+
+   <modules>
+
+     <EbModule class="EventBuilding" id="9" threads="1" timeStats="off" runData="false" tsCheck="true" tsSlop="2" sparsify="false" endian="big"> 
+
+         <inchannel id="9" name="adcecal1vtp" transp="LB_transport" fileName="undefined" split="20000000000" />
+
+         <inchannel id="11" name="adcecal2vtp" transp="LB_transport" fileName="undefined" split="20000000000" />
+
+     </EbModule>
+
+   </modules>
+
+</component>
+

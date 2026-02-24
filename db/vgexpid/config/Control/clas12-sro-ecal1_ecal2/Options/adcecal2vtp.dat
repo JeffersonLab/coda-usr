@@ -1,0 +1,8 @@
+name                  = adcecal2vtp
+type                  = FPGA
+priority              = 1060
+code                  = {$env(CODA)/src/vtp/vtp_streaming/rol/vtp_stream3_1udp_vg.so undefined} 
+isMaster              = false
+output                = File
+dataFile              = undefined
+fileType              = coda

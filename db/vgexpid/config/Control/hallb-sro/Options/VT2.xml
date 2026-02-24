@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<component name="VT2">
+
+   <transports>
+
+   </transports>
+
+   <modules>
+
+     <FPGATriggerModule class="RocSimulation" id="9" timeStats="off" > 
+
+     </FPGATriggerModule>
+
+   </modules>
+
+</component>
+
