@@ -413,8 +413,9 @@ launch_component() {
         echo "  NOTE: FADC250_PARAMS warnings from fadc250peds are expected and harmless"
         echo "        (fadc250peds auto-detects FADCs even without a config file)"
 
-        # Write a script file to avoid complex quoting issues
-        SCRIPT_FILE="coda_tmp_log/${hostname}_${comp_name}_startup.sh"
+        # Write startup script to a shared location (assuming NFS-mounted CODA_SCRIPTS)
+        # This allows the remote host to access it directly without stdin redirection
+        SCRIPT_FILE="${CODA_SCRIPTS}/._${hostname}_${comp_name}_startup.sh"
         cat > "$SCRIPT_FILE" <<EOF
 #!/bin/bash
 echo "========================================"
@@ -457,20 +458,14 @@ echo "========================================"
 echo "STAGE 3: Starting coda_roc..."
 echo "========================================"
 cd \$CODA
-# Run startROC.sh in background with stdin from /dev/zero (prevents EOF)
-# Then wait for it to complete - this keeps the script (and SSH session) alive
-\${CODA_SCRIPTS}/startROC.sh $comp_name $comp_options </dev/zero &
-ROC_PID=\$!
-echo "coda_roc started with PID: \$ROC_PID"
-wait \$ROC_PID
-echo "coda_roc exited"
+exec \${CODA_SCRIPTS}/startROC.sh $comp_name $comp_options
 EOF
         chmod +x "$SCRIPT_FILE"
 
-        # Simple command: run the script via remote_vme
-        # NOTE: Use bash -s which pipes the script via stdin - this is required since
-        # the script file is local and doesn't exist on the remote host
-        xterm_cmd="remote_vme $hostname nobody bash -s < $SCRIPT_FILE 2>&1 | tee coda_tmp_log/${hostname}_${comp_name}_lastsession.log"
+        # Execute the script directly from shared filesystem (no stdin redirection)
+        # This assumes CODA_SCRIPTS is on an NFS mount accessible to the remote host
+        # Stdin remains connected to the terminal for coda_roc to use
+        xterm_cmd="remote_vme $hostname nobody $SCRIPT_FILE 2>&1 | tee coda_tmp_log/${hostname}_${comp_name}_lastsession.log"
     else
         # Normal mode: Use standard start script for all components (including ROC)
         # This preserves original startCoda behavior when --config is NOT specified
