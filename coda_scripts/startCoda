@@ -472,7 +472,8 @@ WRAPPER_EOF
         chmod +x "$WRAPPER_SCRIPT"
 
         # Execute wrapper directly (not via bash -s) so phase 2 gets terminal stdin
-        xterm_cmd="remote_vme $hostname nobody ${CODA_SCRIPTS}/coda_tmp_log/scripts/${hostname}_${comp_name}_wrapper.sh 2>&1 | tee coda_tmp_log/${hostname}_${comp_name}_lastsession.log"
+        # Use \${CODA_SCRIPTS} to expand on remote host, not local
+        xterm_cmd="remote_vme $hostname nobody \${CODA_SCRIPTS}/coda_tmp_log/scripts/${hostname}_${comp_name}_wrapper.sh 2>&1 | tee coda_tmp_log/${hostname}_${comp_name}_lastsession.log"
     else
         # Normal mode: Use standard start script for all components (including ROC)
         # This preserves original startCoda behavior when --config is NOT specified
