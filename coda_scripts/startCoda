@@ -458,15 +458,17 @@ echo "========================================"
 echo "STAGE 3: Starting coda_roc..."
 echo "========================================"
 cd \$CODA
+# Redirect stdin using a process substitution that never ends
+# This prevents coda_roc from seeing EOF on stdin
+exec 0< <(sleep infinity)
 exec \${CODA_SCRIPTS}/startROC.sh $comp_name $comp_options
 EOF
         chmod +x "$SCRIPT_FILE"
 
-        # Execute the script directly from shared filesystem (no stdin redirection)
-        # Use CODA_SCRIPTS-relative path so remote host can access the script file
-        # Stdin remains connected to the terminal for coda_roc to use
-        REMOTE_SCRIPT_PATH="\${CODA_SCRIPTS}/coda_tmp_log/scripts/${hostname}_${comp_name}_startup.sh"
-        xterm_cmd="remote_vme $hostname nobody $REMOTE_SCRIPT_PATH 2>&1 | tee coda_tmp_log/${hostname}_${comp_name}_lastsession.log"
+        # Execute script by piping through bash -s
+        # The script runs startROC.sh (without exec) which launches coda_roc in foreground
+        # This keeps the script alive, which keeps the SSH session alive
+        xterm_cmd="remote_vme $hostname nobody bash -s < $SCRIPT_FILE 2>&1 | tee coda_tmp_log/${hostname}_${comp_name}_lastsession.log"
     else
         # Normal mode: Use standard start script for all components (including ROC)
         # This preserves original startCoda behavior when --config is NOT specified
