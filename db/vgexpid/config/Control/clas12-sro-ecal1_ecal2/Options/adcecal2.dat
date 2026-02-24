@@ -1,6 +1,0 @@
-name                  = adcecal2
-type                  = ROC
-priority              = 1010
-code                  = {$env(CODA)/linuxvme/rol/fadc_master_stream_vg.so undefined} 
-isMaster              = false
-output                = None 
