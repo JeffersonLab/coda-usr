@@ -418,6 +418,21 @@ launch_component() {
         # Phase 1: Run pedestal + wait for config (script via bash -s)
         # Phase 2: Run startROC.sh normally (preserves terminal stdin for coda_roc)
 
+        # Create retry counter directory if it doesn't exist
+        mkdir -p "${CODA_SCRIPTS}/coda_tmp_log/retries"
+
+        # Check retry count to prevent infinite loops
+        RETRY_FILE="${CODA_SCRIPTS}/coda_tmp_log/retries/${hostname}_retries.txt"
+        MAX_RETRIES=3
+        if [ -f "$RETRY_FILE" ]; then
+            RETRY_COUNT=$(cat "$RETRY_FILE")
+            if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+                echo "ERROR: Maximum retries ($MAX_RETRIES) exceeded for $hostname"
+                echo "       Please check config file generation and filesystem mounts"
+                return 1
+            fi
+        fi
+
         # Create wrapper script using absolute path so remote host can find it
         WRAPPER_SCRIPT="${CODA_SCRIPTS}/coda_tmp_log/scripts/${hostname}_${comp_name}_wrapper.sh"
         cat > "$WRAPPER_SCRIPT" <<'WRAPPER_EOF'
@@ -428,10 +443,34 @@ launch_component() {
 # so remote_vme sees it as successful completion, not a failure
 trap 'echo ""; echo "Caught signal - exiting cleanly"; exit 0' SIGINT SIGTERM SIGHUP
 
+# Guard against infinite retries
+RETRY_FILE="${CODA_SCRIPTS}/coda_tmp_log/retries/HOSTNAME_PLACEHOLDER_retries.txt"
+MAX_RETRIES=3
+
+if [ -f "$RETRY_FILE" ]; then
+    RETRY_COUNT=$(cat "$RETRY_FILE")
+else
+    RETRY_COUNT=0
+fi
+
+if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+    echo "FATAL: Maximum retries ($MAX_RETRIES) exceeded"
+    echo "Config file generation persistently failing. Check:"
+    echo "  - Is config being generated?"
+    echo "  - Are filesystems shared (NFS)?"
+    echo "  - Are paths identical on both machines?"
+    exit 1
+fi
+
+echo $((RETRY_COUNT + 1)) > "$RETRY_FILE"
+
 # PHASE 1: Pedestal and config preparation
 echo "========================================"
-echo "STAGE 1: Running pedestal measurement..."
+echo "STAGE 1: Running pedestal measurement (Attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)..."
 echo "========================================"
+echo "Host: $(hostname)"
+echo "User: $(whoami)"
+echo ""
 cd $CODA/linuxvme/fadc-peds && ./fadc250peds $CODA_CONFIG/HOSTNAME_PLACEHOLDER.peds
 PEDS_EXIT=$?
 if [ $PEDS_EXIT -ne 0 ]; then
@@ -447,7 +486,8 @@ echo "STAGE 2: Waiting for config file generation..."
 echo "========================================"
 CONFIG_FILE=$CODA_SCRIPTS/../config/vme_HOSTNAME_PLACEHOLDER.cnf
 echo "Waiting for: $CONFIG_FILE"
-MAX_WAIT=60
+echo "On host: $(hostname)"
+MAX_WAIT=90
 WAIT_COUNT=0
 while [ ! -f "$CONFIG_FILE" ] && [ $WAIT_COUNT -lt $MAX_WAIT ]; do
   sleep 1
@@ -459,10 +499,22 @@ done
 if [ ! -f "$CONFIG_FILE" ]; then
   echo ""
   echo "ERROR: Config file not generated after $MAX_WAIT seconds"
+  echo "Diagnostics:"
+  echo "  Host: $(hostname)"
+  echo "  User: $(whoami)"
+  echo "  PWD: $(pwd)"
+  echo "  Config file: $CONFIG_FILE"
+  echo "  Exists: $([ -e "$CONFIG_FILE" ] && echo YES || echo NO)"
+  echo "  Directory contents:"
+  ls -lht "$(dirname "$CONFIG_FILE")" 2>&1 | head -10
   exit 1
 fi
 echo "Config file ready"
 echo ""
+
+# SUCCESS - clear retry counter
+rm -f "$RETRY_FILE"
+
 # PHASE 2: Start coda_roc with terminal stdin
 echo "========================================"
 echo "STAGE 3: Starting coda_roc..."
@@ -736,10 +788,28 @@ if [[ -n "$CONFIG_FLAG" && ${#ROC_HOSTNAMES[@]} -gt 0 ]]; then
             # Generate vme_hostname.cnf
             generate_vme_config "$hostname" "$BASE_CNF" "$PEDS_FILE" "$OUTPUT_DIR"
 
+            # Transfer VME config to remote host
+            echo "  Transferring vme_${hostname}.cnf to ${hostname}..."
+            scp -q "${OUTPUT_DIR}/vme_${hostname}.cnf" "${hostname}:${OUTPUT_DIR}/vme_${hostname}.cnf" 2>/dev/null
+            if [ $? -ne 0 ]; then
+                echo "  WARNING: Failed to transfer VME config (may be on shared NFS)"
+            else
+                echo "  ✓ VME config transferred successfully"
+            fi
+
             # Generate vtp_hostname.cnf
             generate_vtp_config "$hostname" "$BASE_CNF" "$PEDS_FILE" "$OUTPUT_DIR"
 
-            echo "  Completed configuration files for: $hostname"
+            # Transfer VTP config to remote host
+            echo "  Transferring vtp_${hostname}.cnf to ${hostname}..."
+            scp -q "${OUTPUT_DIR}/vtp_${hostname}.cnf" "${hostname}:${OUTPUT_DIR}/vtp_${hostname}.cnf" 2>/dev/null
+            if [ $? -ne 0 ]; then
+                echo "  WARNING: Failed to transfer VTP config (may be on shared NFS)"
+            else
+                echo "  ✓ VTP config transferred successfully"
+            fi
+
+            echo "  Completed and transferred configuration files to: $hostname"
         done
 
         echo ""
