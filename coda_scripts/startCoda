@@ -217,6 +217,91 @@ get_mac_ip_from_base() {
     return 0
 }
 
+# Normalize an IP string to dotted notation
+# Examples:
+#   "129 57 69 14" -> "129.57.69.14"
+#   "129.57.69.14" -> "129.57.69.14"
+normalize_ip_to_dotted() {
+    local ip_raw="$1"
+    local ip_norm=""
+
+    ip_norm=$(echo "$ip_raw" | awk '{
+        if (NF == 4) {
+            printf "%s.%s.%s.%s", $1, $2, $3, $4
+        } else if (NF == 1) {
+            printf "%s", $1
+        }
+    }')
+
+    echo "$ip_norm"
+}
+
+# Generate IP sender snippet file:
+#   -a <ip1> \
+#   -a <ip2> \
+#   ...
+#   -a <ipN>
+generate_ip_senders_file() {
+    local base_file="$1"
+    local output_file="$2"
+    shift 2
+    local -a hostnames=("$@")
+
+    local -a ip_list=()
+    local hostname=""
+    local mac_addr=""
+    local ip_addr=""
+    local ip_dotted=""
+    local existing_ip=""
+    local ip_seen=""
+
+    # Truncate/create output file
+    : > "$output_file"
+
+    # Build unique IP list from hostnames defined in the selected component file
+    for hostname in "${hostnames[@]}"; do
+        mac_addr=""
+        ip_addr=""
+
+        get_mac_ip_from_base "$base_file" "$hostname" mac_addr ip_addr || true
+        [[ -z "$ip_addr" ]] && continue
+
+        ip_dotted=$(normalize_ip_to_dotted "$ip_addr")
+        [[ -z "$ip_dotted" ]] && continue
+
+        ip_seen="false"
+        for existing_ip in "${ip_list[@]}"; do
+            if [[ "$existing_ip" == "$ip_dotted" ]]; then
+                ip_seen="true"
+                break
+            fi
+        done
+
+        if [[ "$ip_seen" == "false" ]]; then
+            ip_list+=("$ip_dotted")
+        fi
+    done
+
+    # Nothing to write
+    if [[ ${#ip_list[@]} -eq 0 ]]; then
+        return 1
+    fi
+
+    # Emit snippet format with trailing "\" on all but last line
+    local idx=0
+    local last_idx=$(( ${#ip_list[@]} - 1 ))
+    for idx in "${!ip_list[@]}"; do
+        if [[ "$idx" -lt "$last_idx" ]]; then
+            printf -- "-a %s \\" "${ip_list[$idx]}" >> "$output_file"
+            printf "\n" >> "$output_file"
+        else
+            printf -- "-a %s\n" "${ip_list[$idx]}" >> "$output_file"
+        fi
+    done
+
+    return 0
+}
+
 # Extract slot numbers from hostname.peds file
 extract_slots_from_peds() {
     local peds_file="$1"
@@ -724,6 +809,15 @@ if [[ -n "$CONFIG_FLAG" && ${#ROC_HOSTNAMES[@]} -gt 0 ]]; then
     else
         # Output directory (same as base.cnf location)
         OUTPUT_DIR="$(dirname "$BASE_CNF")"
+
+        # Export IP sender snippet for hosts defined in the selected component file
+        IP_SENDERS_FILE="${OUTPUT_DIR}/IP_senders_$$.cnf"
+        if generate_ip_senders_file "$BASE_CNF" "$IP_SENDERS_FILE" "${ROC_HOSTNAMES[@]}"; then
+            echo "Generated IP sender snippet: $IP_SENDERS_FILE"
+        else
+            echo "WARNING: No matching IPs found for ROC hosts in $BASE_CNF"
+            echo "         Created empty IP sender snippet: $IP_SENDERS_FILE"
+        fi
 
         # Wait a bit for pedestal files to be generated
         echo "Waiting for pedestal file generation..."
