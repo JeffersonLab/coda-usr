@@ -1,0 +1,14 @@
+**.xml
+**.log
+**.rdf
+**.peds
+coda_scripts/coda_tmp_log/*
+
+# Everything in config folder, except run.cnf and base.cnf
+config/*
+!config/run.cnf
+!config/base.cnf
+
+**.jpeg
+**.dat
+**.txt
