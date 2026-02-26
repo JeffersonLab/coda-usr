@@ -1,5 +1,0 @@
-FPGA3$FPGA$Et$3$undefined@@
-FPGA2$FPGA$Et$2$undefined@@
-FPGA1$FPGA$Et$6$undefined@@
-VT1$FPGA$Et$8$undefined@@
-VT2$FPGA$Et$9$undefined@@
