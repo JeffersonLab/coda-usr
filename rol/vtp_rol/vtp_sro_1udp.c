@@ -254,6 +254,7 @@ static int vtp_get_src_id(uint32_t *out)
  *   - VTP_STREAMING_DESTIPPORT -> emuport
  *   - VTP_FIRMWARE_Z7 -> firmwareZ7 (buffer must be at least 256 bytes)
  *   - VTP_FIRMWARE_V7 -> firmwareV7 (buffer must be at least 256 bytes)
+ *   - VTP_PAYLOAD_EN -> payloadEnableMask + payloadEnableArray[16]
  */
 static void
 vtp_read_all_from_cfg(const char *cfg_path,
@@ -264,13 +265,23 @@ vtp_read_all_from_cfg(const char *cfg_path,
                        unsigned int *emuip,
                        unsigned int *emuport,
                        char *firmwareZ7,
-                       char *firmwareV7)
+                       char *firmwareV7,
+                       unsigned int *payloadEnableMask,
+                       int payloadEnableArray[16],
+                       int *payloadEnableParsed)
 {
   FILE *f;
   char line[1024];
+  int ii;
 
   if (!cfg_path)
     return;
+
+  if (payloadEnableMask) *payloadEnableMask = 0;
+  if (payloadEnableParsed) *payloadEnableParsed = 0;
+  if (payloadEnableArray) {
+    for (ii = 0; ii < 16; ii++) payloadEnableArray[ii] = 0;
+  }
 
   f = fopen(cfg_path, "r");
   if (!f)
@@ -383,6 +394,38 @@ vtp_read_all_from_cfg(const char *cfg_path,
         strncpy(firmwareV7, val, 255);
         firmwareV7[255] = '\0';
         printf("CONFIG: Read firmwareV7 = '%s' from key 'VTP_FIRMWARE_V7'\n", firmwareV7);
+      }
+    }
+    else if (strcmp(key, "VTP_PAYLOAD_EN") == 0)
+    {
+      int en[16];
+      char key_local[128];
+      int nread;
+
+      nread = sscanf(line,
+                     "%127s %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d",
+                     key_local,
+                     &en[0], &en[1], &en[2], &en[3],
+                     &en[4], &en[5], &en[6], &en[7],
+                     &en[8], &en[9], &en[10], &en[11],
+                     &en[12], &en[13], &en[14], &en[15]);
+
+      if ((nread == 17) && (strcmp(key_local, "VTP_PAYLOAD_EN") == 0))
+      {
+        unsigned int mask = 0;
+        for (ii = 0; ii < 16; ii++)
+        {
+          int bit = (en[ii] != 0) ? 1 : 0;
+          if (payloadEnableArray) payloadEnableArray[ii] = bit;
+          if (bit) mask |= (1U << ii);
+        }
+        if (payloadEnableMask) *payloadEnableMask = mask;
+        if (payloadEnableParsed) *payloadEnableParsed = 1;
+        printf("CONFIG: Read VTP_PAYLOAD_EN mask = 0x%04X\n", mask & 0xFFFF);
+      }
+      else
+      {
+        printf("WARNING: Failed to parse VTP_PAYLOAD_EN line (need 16 values)\n");
       }
     }
   }
@@ -631,7 +674,8 @@ rocDownload()
   printf("INFO: VTP config file verified: %s\n", vtp_config_path);
 
   /* Read firmware filenames from config file */
-  vtp_read_all_from_cfg(vtp_config_path, NULL, NULL, NULL, NULL, NULL, NULL, z7file, v7file);
+  vtp_read_all_from_cfg(vtp_config_path, NULL, NULL, NULL, NULL, NULL, NULL,
+                        z7file, v7file, NULL, NULL, NULL);
 
   /* VALIDATION: Firmware filenames are MANDATORY - no silent defaults */
   if (z7file[0] == '\0')
@@ -719,6 +763,9 @@ rocPrestart()
   int localport = 0;       // MUST be read from config
   int numConnections = 0;  // MUST be read from config
   int enableEjfat = 0;     // MUST be read from config
+  unsigned int payload_mask_cfg = 0;
+  int payload_en_cfg[16];
+  int payload_en_parsed = 0;
 
   VTPflag = 0;
 
@@ -794,7 +841,9 @@ rocPrestart()
      * Bypasses broken vtpGet*() functions that return 0.
      */
     vtp_read_all_from_cfg(vtp_config_path, &numConnections, &netMode,
-                          &localport, &enableEjfat, &emuip, &emuport, NULL, NULL);
+                          &localport, &enableEjfat, &emuip, &emuport,
+                          NULL, NULL,
+                          &payload_mask_cfg, payload_en_cfg, &payload_en_parsed);
   }
 
   /* VALIDATION: Verify all required parameters were read from config file.
@@ -858,11 +907,6 @@ rocPrestart()
    * payloads enabled (safe default that prevents undefined behavior).
    * ======================================================================== */
   {
-    /* WORKAROUND: vtpGetPayloadEnableArray() doesn't exist (same vtpGet*() bug)
-     * Return NULL to trigger safe default: no payloads enabled (ppmask=0)
-     * User should add VTP_PAYLOAD_EN to config file to enable specific payloads
-     */
-    const int *payload_en = NULL;
     int payload_num;
     int active_count = 0;
     int mask_result;
@@ -870,17 +914,19 @@ rocPrestart()
     /* Initialize ppmask to 0 - CRITICAL: do not skip this! */
     ppmask = 0;
 
-    if (!payload_en) {
-      printf("WARNING: vtpGetPayloadEnableArray() not available (libvtp limitation)\n");
+    if (!payload_en_parsed) {
+      printf("WARNING: VTP_PAYLOAD_EN not parsed from config file\n");
       printf("WARNING: Falling back to no payloads enabled (ppmask=0)\n");
       printf("INFO: To configure payloads, add VTP_PAYLOAD_EN to config file\n");
     } else {
       printf("INFO: Configuring VTP payload ports from VTP_PAYLOAD_EN...\n");
+      printf("INFO: Parsed VTP_PAYLOAD_EN mask from config = 0x%04X\n",
+             payload_mask_cfg & 0xFFFF);
 
       /* Iterate through all 16 possible payloads */
       for (payload_num = 1; payload_num <= 16; payload_num++) {
         /* Check if this payload is enabled (array index is payload_num-1) */
-        if (payload_en[payload_num - 1] == 1) {
+        if (payload_en_cfg[payload_num - 1] == 1) {
           printf("INFO:   Enabling payload %d (VTP_PAYLOAD_EN[%d]=1)\n",
                  payload_num, payload_num - 1);
 
@@ -910,6 +956,19 @@ rocPrestart()
     }
   }
   /* ======================================================================== */
+
+  /* Apply trigger payload mask to decoder/serdes path.
+   * vtpStreamingSetEbCfg() only configures streaming EB routing; this call
+   * ensures enabled payload lanes are taken out of reset. */
+  {
+    int status_mask = vtpEnableTriggerPayloadMask(ppmask);
+    if (status_mask == OK) {
+      printf("INFO: Applied trigger payload mask = 0x%04X\n", ppmask & 0xFFFF);
+    } else {
+      printf("WARNING: Failed to apply trigger payload mask (0x%04X)\n",
+             ppmask & 0xFFFF);
+    }
+  }
 
   /* Update the Streaming EB configuration for the new firmware to get the correct PP Mask and ROCID
      PP mask, nstreams, frame_len (ns), ROCID, ppInfo  */
@@ -1074,7 +1133,8 @@ rocGo()
   if (vtp_get_generated_config_path(vtp_config_path, sizeof(vtp_config_path)) == 0 &&
       access(vtp_config_path, R_OK) == 0)
   {
-    vtp_read_all_from_cfg(vtp_config_path, &numConnections, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+    vtp_read_all_from_cfg(vtp_config_path, &numConnections, NULL, NULL, NULL,
+                          NULL, NULL, NULL, NULL, NULL, NULL, NULL);
   }
   if (numConnections == 0) numConnections = 1;  /* Emergency fallback */
 
@@ -1159,7 +1219,8 @@ rocEnd()
   if (vtp_get_generated_config_path(vtp_config_path, sizeof(vtp_config_path)) == 0 &&
       access(vtp_config_path, R_OK) == 0)
   {
-    vtp_read_all_from_cfg(vtp_config_path, &numConnections, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+    vtp_read_all_from_cfg(vtp_config_path, &numConnections, NULL, NULL, NULL,
+                          NULL, NULL, NULL, NULL, NULL, NULL, NULL);
   }
   if (numConnections == 0) numConnections = 1;  /* Emergency fallback */
 
@@ -1315,4 +1376,3 @@ rocReset()
   compile-command: "make -k vtp_list.so"
   End:
  */
-

@@ -2,6 +2,7 @@
 **.log
 **.rdf
 **.peds
+**.so
 coda_scripts/coda_tmp_log/*
 
 # Everything in config folder, except run.cnf and base.cnf type files
