@@ -1,0 +1,15 @@
+# CODA Component table
+# [hostname]   [component_type]    [component_name]     ([opt. args])
+# 
+adcecal1 ROC rEC1 -v
+adcecal2 ROC rEC2 -v
+adcecal3 ROC rEC3 -v
+adcecal4 ROC rEC4 -v
+adcecal5 ROC rEC5 -v
+adcecal6 ROC rEC6 -v
+adcecal1vtp FPGA EC1 -v
+adcecal2vtp FPGA EC2 -v
+adcecal3vtp FPGA EC3 -v
+adcecal4vtp FPGA EC4 -v
+adcecal5vtp FPGA EC5 -v
+adcecal6vtp FPGA EC6 -v

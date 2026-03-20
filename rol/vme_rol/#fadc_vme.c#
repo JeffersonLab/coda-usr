@@ -61,7 +61,7 @@ unsigned int fadcmask=0;
 #define FADC_VXS
 
 // TODO initialize all FADC slots (vg)
-#define NFADC     8
+#define /* NFADC */     8
 /* Address of first fADC250 */
 #define FADC_ADDR 0x180000
 /* Increment address to find next fADC250 */
@@ -165,6 +165,10 @@ static void init_config_params(user_config_params_t *params)
 static int get_sanitized_hostname(char *hostname_buf, size_t bufsize);
 static int parse_mac_string(const char *s, unsigned char mac[6]);
 static int parse_ip_string(const char *s, unsigned char ip[4]);
+static int parse_mac_space_string(const char *s, unsigned char mac[6]);
+static int parse_ip_space_string(const char *s, unsigned char ip[4]);
+static int parse_node_table_line(const char *line, char host_out[256],
+                                 unsigned char mac_out[6], unsigned char ip_out[4]);
 static int lookup_node_mac_ip(const char *config_file, const char *local_hostname,
                                unsigned char mac_out[6], unsigned char ip_out[4]);
 
@@ -604,12 +608,95 @@ static int parse_ip_string(const char *s, unsigned char ip[4])
 }
 
 /**
- * Scan config_file for per-node lines of the form:
+ * Parse six whitespace-separated MAC bytes (hex) from a string:
+ *   "0xce 0xba 0xf0 0x03 0x01 0x23"
+ * Returns: 0 on success, -1 on bad format.
+ */
+static int parse_mac_space_string(const char *s, unsigned char mac[6])
+{
+  unsigned int b[6];
+  char extra[16];
+  int i;
+
+  if (!s || !mac) return -1;
+  if (sscanf(s, " %x %x %x %x %x %x %15s",
+             &b[0], &b[1], &b[2], &b[3], &b[4], &b[5], extra) != 6)
+    return -1;
+  for (i = 0; i < 6; i++) {
+    if (b[i] > 255) return -1;
+    mac[i] = (unsigned char)b[i];
+  }
+  return 0;
+}
+
+/**
+ * Parse four whitespace-separated IP octets (decimal) from a string:
+ *   "129 57 69 58"
+ * Returns: 0 on success, -1 on bad format.
+ */
+static int parse_ip_space_string(const char *s, unsigned char ip[4])
+{
+  unsigned int b[4];
+  char extra[16];
+  int i;
+
+  if (!s || !ip) return -1;
+  if (sscanf(s, " %u %u %u %u %15s", &b[0], &b[1], &b[2], &b[3], extra) != 4)
+    return -1;
+  for (i = 0; i < 4; i++) {
+    if (b[i] > 255) return -1;
+    ip[i] = (unsigned char)b[i];
+  }
+  return 0;
+}
+
+/**
+ * Parse one node-table line in any supported format:
+ *   1) hostname XX:XX:XX:XX:XX:XX d.d.d.d
+ *   2) hostname "0xce 0xba 0xf0 0x03 0x01 0x23" "129 57 69 58"
+ *
+ * Returns: 0 on success, 1 if line does not match a supported node format.
+ */
+static int parse_node_table_line(const char *line, char host_out[256],
+                                 unsigned char mac_out[6], unsigned char ip_out[4])
+{
+  char host[256], mac_tok[128], ip_tok[128], extra[32];
+
+  if (!line || !host_out || !mac_out || !ip_out) return 1;
+
+  /* Form 1: three whitespace-separated tokens */
+  if (sscanf(line, " %255s %127s %127s %31s", host, mac_tok, ip_tok, extra) == 3) {
+    if (parse_mac_string(mac_tok, mac_out) == 0 &&
+        parse_ip_string(ip_tok, ip_out) == 0) {
+      strncpy(host_out, host, 255);
+      host_out[255] = '\0';
+      return 0;
+    }
+  }
+
+  /* Form 2: quoted legacy base.cnf style */
+  if (sscanf(line, " %255s \"%127[^\"]\" \"%127[^\"]\" %31s",
+             host, mac_tok, ip_tok, extra) == 3) {
+    if ((parse_mac_space_string(mac_tok, mac_out) == 0 ||
+         parse_mac_string(mac_tok, mac_out) == 0) &&
+        (parse_ip_space_string(ip_tok, ip_out) == 0 ||
+         parse_ip_string(ip_tok, ip_out) == 0)) {
+      strncpy(host_out, host, 255);
+      host_out[255] = '\0';
+      return 0;
+    }
+  }
+
+  return 1;
+}
+
+/**
+ * Scan config_file for per-node lines of either form:
  *   hostname  XX:XX:XX:XX:XX:XX  d.d.d.d
+ *   hostname  "0xce 0xba 0xf0 0x03 0x01 0x23" "129 57 69 58"
  *
  * These lines are distinguished from keyword-based entries by the absence of
- * a leading VTP_* or FADC250_* keyword and the presence of a colon-separated
- * MAC in the second field and a dotted-decimal IP in the third field.
+ * a leading VTP_* or FADC250_* keyword and valid MAC/IP fields.
  * Blank lines and lines starting with '#' are skipped.
  *
  * local_hostname may be FQDN or short; both forms are matched against the
@@ -624,7 +711,7 @@ static int lookup_node_mac_ip(const char *config_file, const char *local_hostnam
 {
   FILE *fp;
   char line[1024];
-  char tok_host[256], tok_mac[64], tok_ip[64];
+  char tok_host[256];
   char local_short[256], line_short[256];
   int line_num = 0;
   int found = 0;
@@ -649,22 +736,17 @@ static int lookup_node_mac_ip(const char *config_file, const char *local_hostnam
     /* Skip lines that are clearly keyword-based config entries */
     if (strncmp(line, "VTP_", 4) == 0 || strncmp(line, "FADC250_", 8) == 0) continue;
 
-    /* Try to parse exactly three whitespace-separated tokens */
-    if (sscanf(line, "%255s %63s %63s", tok_host, tok_mac, tok_ip) != 3) continue;
-
-    /* Validate MAC and IP format before treating this as a node line */
     {
       unsigned char tmp_mac[6], tmp_ip[4];
-      if (parse_mac_string(tok_mac, tmp_mac) != 0) continue;
-      if (parse_ip_string(tok_ip,  tmp_ip)  != 0) continue;
 
-      /* Both fields are valid - this is a node line.
-       * Now check if the hostname matches (FQDN or short, case-insensitive). */
+      if (parse_node_table_line(line, tok_host, tmp_mac, tmp_ip) != 0) continue;
+
+      /* Valid node-table line. Check if hostname matches
+       * (FQDN or short, case-insensitive). */
       hostname_short(tok_host, line_short, sizeof(line_short));
 
       if (strcasecmp(tok_host, local_hostname) == 0 ||
-          strcasecmp(line_short, local_short)  == 0)
-      {
+          strcasecmp(line_short, local_short)  == 0) {
         memcpy(mac_out, tmp_mac, 6);
         memcpy(ip_out,  tmp_ip,  4);
         printf("INFO: Node table match: host='%s' MAC=%02X:%02X:%02X:%02X:%02X:%02X"

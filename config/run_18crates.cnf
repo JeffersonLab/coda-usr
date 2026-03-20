@@ -1,0 +1,41 @@
+# CODA Component table
+# [hostname]   [component_type]    [component_name]     ([opt. args])
+# 
+adcecal1 ROC rEC1 -v
+adcecal2 ROC rEC2 -v
+adcecal3 ROC rEC3 -v
+adcecal4 ROC rEC4 -v
+adcecal5 ROC rEC5 -v
+adcecal6 ROC rEC6 -v
+adcecal1vtp FPGA EC1 -v
+adcecal2vtp FPGA EC2 -v
+adcecal3vtp FPGA EC3 -v
+adcecal4vtp FPGA EC4 -v
+adcecal5vtp FPGA EC5 -v
+adcecal6vtp FPGA EC6 -v
+# PCAL
+adcpcal1 ROC rPC1 -v
+adcpcal2 ROC rPC2 -v
+adcpcal3 ROC rPC3 -v
+adcpcal4 ROC rPC4 -v
+adcpcal5 ROC rPC5 -v
+adcpcal6 ROC rPC6 -v
+adcpcal1vtp FPGA PC1 -v
+adcpcal2vtp FPGA PC2 -v
+adcpcal3vtp FPGA PC3 -v
+adcpcal4vtp FPGA PC4 -v
+adcpcal5vtp FPGA PC5 -v
+adcpcal6vtp FPGA PC6 -v
+# FTOF
+adcftof1 ROC rFT1 -v
+adcftof2 ROC rFT2 -v
+adcftof3 ROC rFT3 -v
+adcftof4 ROC rFT4 -v
+adcftof5 ROC rFT5 -v
+adcftof6 ROC rFT6 -v
+adcftof1vtp FPGA FT1 -v
+adcftof2vtp FPGA FT2 -v
+adcftof3vtp FPGA FT3 -v
+adcftof4vtp FPGA FT4 -v
+adcftof5vtp FPGA FT5 -v
+adcftof6vtp FPGA FT6 -v

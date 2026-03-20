@@ -1,0 +1,5 @@
+# CODA Component table
+# [hostname]   [component_type]    [component_name]     ([opt. args])
+# 
+adcecal1 ROC rEC1 -v
+adcecal1vtp FPGA EC1 -v

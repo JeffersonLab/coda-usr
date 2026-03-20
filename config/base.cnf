@@ -30,7 +30,7 @@ FADC250_NSA 60
 FADC250_NPEAK 1
 
 # fadc channel hit threshold (adc channel)
-FADC250_TET 20
+FADC250_TET 10
 
 # board DAC, one and the same for all 16 channels (DAC/mV)
 FADC250_DAC 3270 
@@ -79,7 +79,7 @@ VTP_STREAMING_SUBNET      255 255 255   0
 VTP_STREAMING_GATEWAY     129  57  69   1   
 
 #JLab LB (MUST update every new reservation & URI!)
-VTP_STREAMING_DESTIP	         129.57.177.12
+VTP_STREAMING_DESTIP	         129.57.177.10
 
 VTP_STREAMING_DESTIPPORT  19522
 VTP_STREAMING_LOCALPORT   10001

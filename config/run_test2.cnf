@@ -1,0 +1,5 @@
+# CODA Component table
+# [hostname]   [component_type]    [component_name]     ([opt. args])
+# 
+test2    ROC  rTEST2 -v
+test2vtp FPGA TEST2 -v
